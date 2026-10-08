@@ -44,6 +44,9 @@
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; height: 100%; }
+    /* scroll like a phone app: no visible scrollbar on the page or the sheets */
+    html, body, .sheet { scrollbar-width: none; -ms-overflow-style: none; }
+    html::-webkit-scrollbar, body::-webkit-scrollbar, .sheet::-webkit-scrollbar { display: none; }
     body { background: var(--bg); color: var(--text); font: 500 15px/1.45 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
     button, input, select { font: inherit; color: inherit; }
     button { cursor: pointer; }
