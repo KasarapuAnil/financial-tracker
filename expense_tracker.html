@@ -1,0 +1,3065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Expense & Credit/Debit Ledger</title>
+  <meta name="description" content="Personal daily expense tracker and monthly credit-debit ledger with positive/negative net balance analytics.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       CSS Variables & Design Tokens - Cyber-Luxe Financial Theme
+       ========================================================================== */
+    :root {
+      --bg-main: #090d16;
+      --bg-card: rgba(18, 24, 38, 0.75);
+      --bg-card-hover: rgba(26, 34, 52, 0.85);
+      --bg-card-solid: #111827;
+      --bg-input: rgba(13, 19, 32, 0.8);
+      
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(255, 255, 255, 0.16);
+      --border-focus: #6366f1;
+
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+
+      /* Credit / Inflow / Positive Tokens */
+      --credit-color: #10b981;
+      --credit-light: #34d399;
+      --credit-bg: rgba(16, 185, 129, 0.12);
+      --credit-border: rgba(16, 185, 129, 0.28);
+      --credit-glow: rgba(16, 185, 129, 0.25);
+
+      /* Debit / Outflow / Negative Tokens */
+      --debit-color: #f43f5e;
+      --debit-light: #fb7185;
+      --debit-bg: rgba(244, 63, 94, 0.12);
+      --debit-border: rgba(244, 63, 94, 0.28);
+      --debit-glow: rgba(244, 63, 94, 0.25);
+
+      /* Brand Accents */
+      --accent-indigo: #6366f1;
+      --accent-purple: #8b5cf6;
+      --accent-cyan: #06b6d4;
+      --accent-amber: #f59e0b;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+
+      --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.25);
+      --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
+      --shadow-glow-credit: 0 0 30px rgba(16, 185, 129, 0.2);
+      --shadow-glow-debit: 0 0 30px rgba(244, 63, 94, 0.2);
+
+      --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      background-color: var(--bg-main);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(244, 63, 94, 0.08) 0px, transparent 60%);
+      background-attachment: fixed;
+      font-family: var(--font-main);
+      color: var(--text-primary);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ==========================================================================
+       Layout & Navigation
+       ========================================================================== */
+    .app-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+
+    /* Top Header */
+    .app-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 28px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #6366f1, #3b82f6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+      color: white;
+      font-size: 24px;
+    }
+
+    .brand-titles h1 {
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-titles p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .currency-pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .currency-select {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .currency-select option {
+      background: var(--bg-card-solid);
+      color: var(--text-primary);
+    }
+
+    .btn-add-primary {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.92rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 18px rgba(79, 70, 229, 0.35);
+    }
+
+    .btn-add-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(79, 70, 229, 0.45);
+    }
+
+    /* Main Navigation Tabs */
+    .nav-tabs-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .nav-tabs {
+      display: flex;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 6px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      gap: 4px;
+      backdrop-filter: blur(12px);
+    }
+
+    .nav-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 10px 22px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      font-family: inherit;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+    }
+
+    .nav-tab-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .nav-tab-btn.active {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(79, 70, 229, 0.9));
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+    }
+
+    .nav-tab-btn .badge-pill {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Page View Containers */
+    .page-view {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .page-view.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ==========================================================================
+       Shared Component Styles: Cards, Metrics, Badges
+       ========================================================================== */
+    .glass-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .glass-card:hover {
+      border-color: var(--border-hover);
+    }
+
+    /* Positive / Negative Highlights */
+    .card-positive-glow {
+      border-color: var(--credit-border) !important;
+      background: linear-gradient(145deg, rgba(16, 185, 129, 0.09), rgba(18, 24, 38, 0.85));
+      box-shadow: var(--shadow-glow-credit);
+    }
+
+    .card-negative-glow {
+      border-color: var(--debit-border) !important;
+      background: linear-gradient(145deg, rgba(244, 63, 94, 0.09), rgba(18, 24, 38, 0.85));
+      box-shadow: var(--shadow-glow-debit);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .badge-credit {
+      background: var(--credit-bg);
+      color: var(--credit-light);
+      border: 1px solid var(--credit-border);
+    }
+
+    .badge-debit {
+      background: var(--debit-bg);
+      color: var(--debit-light);
+      border: 1px solid var(--debit-border);
+    }
+
+    .badge-positive {
+      background: rgba(16, 185, 129, 0.16);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .badge-negative {
+      background: rgba(244, 63, 94, 0.16);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.35);
+    }
+
+    /* Amount formatting */
+    .amount-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+
+    .amount-credit {
+      color: var(--credit-light);
+    }
+
+    .amount-debit {
+      color: var(--debit-light);
+    }
+
+    /* KPI Stats Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .metric-card {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 140px;
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--accent-indigo);
+    }
+
+    .metric-card.credit-border::before {
+      background: var(--credit-color);
+    }
+
+    .metric-card.debit-border::before {
+      background: var(--debit-color);
+    }
+
+    .metric-card.net-border-pos::before {
+      background: linear-gradient(to bottom, #10b981, #06b6d4);
+    }
+
+    .metric-card.net-border-neg::before {
+      background: linear-gradient(to bottom, #f43f5e, #f59e0b);
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .metric-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-icon-box {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .metric-amount {
+      font-size: 1.85rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+    }
+
+    .metric-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ==========================================================================
+       PAGE 1: DAILY EXPENSES VIEW
+       ========================================================================== */
+    .date-navigator {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 20px;
+      margin-bottom: 24px;
+    }
+
+    .date-nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-nav-step {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .btn-nav-step:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: var(--border-hover);
+    }
+
+    .current-date-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .date-picker-input {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .date-picker-input:focus {
+      border-color: var(--accent-indigo);
+    }
+
+    .btn-today-pill {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-today-pill:hover {
+      background: rgba(99, 102, 241, 0.3);
+    }
+
+    /* Daily Content Split */
+    .daily-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    @media (max-width: 992px) {
+      .daily-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Fast Entry Form */
+    .entry-form-card {
+      position: sticky;
+      top: 24px;
+    }
+
+    .form-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Type Selector: Credit vs Debit */
+    .type-switcher {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .type-btn {
+      padding: 12px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 0.92rem;
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      transition: all 0.25s ease;
+    }
+
+    .type-btn.active-debit {
+      background: var(--debit-bg);
+      border-color: var(--debit-border);
+      color: var(--debit-light);
+      box-shadow: 0 4px 15px rgba(244, 63, 94, 0.25);
+    }
+
+    .type-btn.active-credit {
+      background: var(--credit-bg);
+      border-color: var(--credit-border);
+      color: var(--credit-light);
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25);
+    }
+
+    .type-subtitle {
+      font-size: 0.72rem;
+      opacity: 0.8;
+      font-weight: 500;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-prefix {
+      position: absolute;
+      left: 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      pointer-events: none;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 11px 14px;
+      font-family: inherit;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input.has-prefix {
+      padding-left: 36px;
+      font-family: var(--font-mono);
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent-indigo);
+    }
+
+    /* Quick Amount Chips */
+    .amount-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .chip-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text-primary);
+    }
+
+    .form-select {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 11px 14px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .form-select option {
+      background: var(--bg-card-solid);
+      color: var(--text-primary);
+    }
+
+    .btn-submit-entry {
+      width: 100%;
+      padding: 13px;
+      border-radius: var(--radius-md);
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+      margin-top: 6px;
+    }
+
+    .btn-submit-debit {
+      background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(244, 63, 94, 0.35);
+    }
+
+    .btn-submit-credit {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(16, 185, 129, 0.35);
+    }
+
+    .btn-submit-entry:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.1);
+    }
+
+    /* Ledger List & Filter Toolbar */
+    .ledger-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .filter-btn.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #818cf8;
+    }
+
+    .search-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 7px 14px;
+      font-size: 0.85rem;
+      outline: none;
+      width: 220px;
+    }
+
+    .search-box:focus {
+      border-color: var(--accent-indigo);
+    }
+
+    /* Transaction Rows */
+    .tx-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tx-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+
+    .tx-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-hover);
+      transform: translateX(3px);
+    }
+
+    .tx-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tx-cat-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .tx-cat-icon.credit-icon {
+      background: var(--credit-bg);
+      border: 1px solid var(--credit-border);
+      color: var(--credit-light);
+    }
+
+    .tx-cat-icon.debit-icon {
+      background: var(--debit-bg);
+      border: 1px solid var(--debit-border);
+      color: var(--debit-light);
+    }
+
+    .tx-details {
+      min-width: 0;
+    }
+
+    .tx-desc {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+
+    .tx-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+
+    .meta-tag {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 7px;
+      border-radius: 4px;
+      color: var(--text-secondary);
+    }
+
+    .tx-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      text-align: right;
+    }
+
+    .tx-amount-display {
+      font-size: 1.15rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .tx-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-action-icon {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .btn-action-icon:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+    }
+
+    .btn-action-delete:hover {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
+    }
+
+    .empty-state {
+      padding: 50px 20px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 44px;
+      margin-bottom: 12px;
+      opacity: 0.6;
+    }
+
+    /* ==========================================================================
+       PAGE 2: MONTHLY OVERALL OVERVIEW & NET BALANCE ANALYTICS
+       ========================================================================== */
+    .month-navigator-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 24px;
+    }
+
+    .month-picker-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .current-month-display {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    /* Executive Net Balance Positive / Negative Banner */
+    .net-banner {
+      position: relative;
+      border-radius: var(--radius-xl);
+      padding: 32px 36px;
+      margin-bottom: 30px;
+      overflow: hidden;
+      border: 1px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .net-banner.positive {
+      background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.22), rgba(6, 78, 59, 0.2) 40%, rgba(17, 24, 39, 0.95) 85%);
+      border-color: rgba(16, 185, 129, 0.38);
+      box-shadow: 0 15px 40px rgba(16, 185, 129, 0.18), inset 0 0 40px rgba(16, 185, 129, 0.05);
+    }
+
+    .net-banner.negative {
+      background: radial-gradient(circle at top right, rgba(244, 63, 94, 0.22), rgba(136, 19, 55, 0.2) 40%, rgba(17, 24, 39, 0.95) 85%);
+      border-color: rgba(244, 63, 94, 0.38);
+      box-shadow: 0 15px 40px rgba(244, 63, 94, 0.18), inset 0 0 40px rgba(244, 63, 94, 0.05);
+    }
+
+    .net-banner-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .net-banner-tag {
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+
+    .net-banner.positive .net-banner-tag {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .net-banner.negative .net-banner-tag {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.4);
+    }
+
+    .net-banner-amount-row {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .net-banner-amount {
+      font-size: 3rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    .net-banner.positive .net-banner-amount {
+      color: #34d399;
+      text-shadow: 0 0 35px rgba(16, 185, 129, 0.4);
+    }
+
+    .net-banner.negative .net-banner-amount {
+      color: #fb7185;
+      text-shadow: 0 0 35px rgba(244, 63, 94, 0.4);
+    }
+
+    .net-rate-badge {
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 8px;
+    }
+
+    .net-banner.positive .net-rate-badge {
+      background: rgba(16, 185, 129, 0.2);
+      color: #a7f3d0;
+    }
+
+    .net-banner.negative .net-rate-badge {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fecdd3;
+    }
+
+    .net-banner-desc {
+      font-size: 0.96rem;
+      color: var(--text-secondary);
+      max-width: 680px;
+      margin-bottom: 22px;
+    }
+
+    /* Savings / Deficit Visual Gauge Bar */
+    .net-gauge-wrapper {
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 999px;
+      height: 12px;
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      position: relative;
+    }
+
+    .net-gauge-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .net-gauge-fill.positive-fill {
+      background: linear-gradient(90deg, #10b981, #34d399);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.7);
+    }
+
+    .net-gauge-fill.negative-fill {
+      background: linear-gradient(90deg, #f59e0b, #f43f5e);
+      box-shadow: 0 0 15px rgba(244, 63, 94, 0.7);
+    }
+
+    /* Charts Section */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      margin-bottom: 30px;
+    }
+
+    @media (max-width: 992px) {
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .chart-card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* Custom SVG Bar Chart Container */
+    .bar-chart-container {
+      width: 100%;
+      height: 240px;
+      position: relative;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 16px;
+      font-size: 0.8rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    /* Category Breakdown List */
+    .category-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .cat-bar-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cat-bar-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .cat-bar-progress {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .cat-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #6366f1, #818cf8);
+    }
+
+    /* ==========================================================================
+       PAGE 3: ANNUAL OVERVIEW
+       ========================================================================== */
+    .annual-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 18px;
+      margin-bottom: 30px;
+    }
+
+    .month-summary-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+
+    .month-summary-box:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .month-box-title {
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .month-box-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    /* ==========================================================================
+       PAGE 4: BACKUP & SETTINGS
+       ========================================================================== */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .settings-action-btn {
+      width: 100%;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      transition: all 0.2s;
+      margin-top: 10px;
+    }
+
+    .settings-action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-hover);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.15);
+      border-color: rgba(244, 63, 94, 0.3);
+      color: #fb7185;
+    }
+
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.25);
+    }
+
+    .btn-success {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+
+    .btn-success:hover {
+      background: rgba(16, 185, 129, 0.25);
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: #1e293b;
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      font-size: 0.88rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideInRight 0.3s ease forwards;
+      pointer-events: auto;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Modal for Quick Edit */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--bg-card-solid);
+      border: 1px solid var(--border-hover);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 480px;
+      padding: 24px;
+      box-shadow: var(--shadow-lg);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="brand-icon">₹</div>
+        <div class="brand-titles">
+          <h1>FinLedger Luxe</h1>
+          <p>Personal Daily Expense & Monthly Credit/Debit Analytics</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Currency Pill -->
+        <div class="currency-pill">
+          <span>Currency:</span>
+          <select id="currencySelector" class="currency-select" title="Select Currency">
+            <option value="₹" selected>₹ INR</option>
+            <option value="$">$ USD</option>
+            <option value="€">€ EUR</option>
+            <option value="£">£ GBP</option>
+            <option value="AED">AED</option>
+          </select>
+        </div>
+
+        <!-- Direct Quick Add Button -->
+        <button id="btnQuickAddNav" class="btn-add-primary" type="button">
+          <span>+ Add Transaction</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Bar (Daily, Monthly, Annual, Backup) -->
+    <div class="nav-tabs-wrapper">
+      <nav class="nav-tabs" aria-label="Main Navigation">
+        <button class="nav-tab-btn active" data-target="pageDaily" id="tabDaily">
+          <span>📅 Daily Log</span>
+          <span class="badge-pill" id="todayCountBadge">0</span>
+        </button>
+        <button class="nav-tab-btn" data-target="pageMonthly" id="tabMonthly">
+          <span>📊 Monthly Overview</span>
+          <span class="badge-pill" id="monthlyStatusPill">Net +/-</span>
+        </button>
+        <button class="nav-tab-btn" data-target="pageAnnual" id="tabAnnual">
+          <span>📈 Annual Trends</span>
+        </button>
+        <button class="nav-tab-btn" data-target="pageSettings" id="tabSettings">
+          <span>⚙️ Backup & Demo</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ====================================================================
+         PAGE 1: DAILY EXPENSES & CREDIT/DEBIT JOURNAL
+         ==================================================================== -->
+    <main id="pageDaily" class="page-view active">
+      
+      <!-- Date Navigation Banner -->
+      <div class="date-navigator">
+        <div class="date-nav-controls">
+          <button class="btn-nav-step" id="btnPrevDay" title="Previous Day">‹</button>
+          <div class="current-date-title" id="displayDailyDate">Today, 07 Oct 2026</div>
+          <button class="btn-nav-step" id="btnNextDay" title="Next Day">›</button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="date" id="dailyDatePicker" class="date-picker-input" title="Choose specific date">
+          <button class="btn-today-pill" id="btnJumpToday">Today</button>
+        </div>
+      </div>
+
+      <!-- Daily KPI Metrics -->
+      <section class="metrics-grid">
+        <!-- Daily Credit (Inflow) -->
+        <div class="glass-card metric-card credit-border">
+          <div class="metric-header">
+            <span class="metric-title">Daily Credit (Income)</span>
+            <div class="metric-icon-box" style="background: var(--credit-bg); color: var(--credit-light);">↓</div>
+          </div>
+          <div class="metric-amount amount-credit" id="dailyTotalCredit">₹0.00</div>
+          <div class="metric-sub" id="dailyCreditCount">0 credit transactions</div>
+        </div>
+
+        <!-- Daily Debit (Outflow) -->
+        <div class="glass-card metric-card debit-border">
+          <div class="metric-header">
+            <span class="metric-title">Daily Debit (Expense)</span>
+            <div class="metric-icon-box" style="background: var(--debit-bg); color: var(--debit-light);">↑</div>
+          </div>
+          <div class="metric-amount amount-debit" id="dailyTotalDebit">₹0.00</div>
+          <div class="metric-sub" id="dailyDebitCount">0 debit transactions</div>
+        </div>
+
+        <!-- Daily Net Balance -->
+        <div class="glass-card metric-card" id="dailyNetCard">
+          <div class="metric-header">
+            <span class="metric-title">Daily Net Balance</span>
+            <span class="badge" id="dailyNetBadge">Balanced</span>
+          </div>
+          <div class="metric-amount amount-val" id="dailyNetBalance">₹0.00</div>
+          <div class="metric-sub" id="dailyNetNote">Credit minus Debit for this day</div>
+        </div>
+      </section>
+
+      <!-- Main Daily Grid: Entry Form on Left, Ledger Table on Right -->
+      <div class="daily-grid">
+        
+        <!-- Left: Quick Entry Form -->
+        <section class="glass-card entry-form-card">
+          <h2 class="form-title" id="formHeaderTitle">⚡ New Entry</h2>
+          
+          <form id="txForm">
+            <input type="hidden" id="txEditId" value="">
+
+            <!-- Type Selector: Debit (Expense) vs Credit (Income) -->
+            <div class="type-switcher">
+              <button type="button" class="type-btn active-debit" id="btnTypeDebit">
+                <span>🔴 Debit</span>
+                <span class="type-subtitle">Expense / Spent</span>
+              </button>
+              <button type="button" class="type-btn" id="btnTypeCredit">
+                <span>🟢 Credit</span>
+                <span class="type-subtitle">Income / Added</span>
+              </button>
+            </div>
+
+            <!-- Amount Input -->
+            <div class="form-group">
+              <label class="form-label" for="txAmount">Amount</label>
+              <div class="input-wrapper">
+                <span class="input-prefix" id="inputCurrencyPrefix">₹</span>
+                <input type="number" id="txAmount" class="form-input has-prefix" placeholder="0.00" step="any" min="0.01" required>
+              </div>
+              <div class="amount-chips">
+                <button type="button" class="chip-btn" data-add="50">+50</button>
+                <button type="button" class="chip-btn" data-add="100">+100</button>
+                <button type="button" class="chip-btn" data-add="500">+500</button>
+                <button type="button" class="chip-btn" data-add="1000">+1,000</button>
+                <button type="button" class="chip-btn" data-add="2000">+2,000</button>
+                <button type="button" class="chip-btn" data-add="5000">+5,000</button>
+              </div>
+            </div>
+
+            <!-- Category -->
+            <div class="form-group">
+              <label class="form-label" for="txCategory">Category</label>
+              <select id="txCategory" class="form-select" required>
+                <!-- Populated dynamically based on Credit vs Debit -->
+              </select>
+            </div>
+
+            <!-- Description / Note -->
+            <div class="form-group">
+              <label class="form-label" for="txDesc">Description / Note</label>
+              <input type="text" id="txDesc" class="form-input" placeholder="e.g. Grocery items, Salary, Petrol, Lunch..." required>
+            </div>
+
+            <!-- Payment Mode & Time -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label" for="txPaymentMode">Payment Mode</label>
+                <select id="txPaymentMode" class="form-select">
+                  <option value="UPI">UPI / GPay / PhonePe</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Credit Card">Credit Card</option>
+                  <option value="Debit Card">Debit Card</option>
+                  <option value="Net Banking">Net Banking</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="txDate">Date</label>
+                <input type="date" id="txDate" class="form-input" required>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" id="btnSubmitTx" class="btn-submit-entry btn-submit-debit">
+              <span id="btnSubmitIcon">✓</span>
+              <span id="btnSubmitText">Save Debit Expense</span>
+            </button>
+            <button type="button" id="btnCancelEdit" class="settings-action-btn" style="display:none; margin-top:8px;">Cancel Edit</button>
+          </form>
+        </section>
+
+        <!-- Right: Daily Ledger List -->
+        <section class="glass-card">
+          <div class="ledger-controls">
+            <div class="filter-group">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="credit">🟢 Credits Only</button>
+              <button class="filter-btn" data-filter="debit">🔴 Debits Only</button>
+            </div>
+            <input type="search" id="searchDailyTx" class="search-box" placeholder="🔍 Search this day...">
+          </div>
+
+          <!-- Transaction items container -->
+          <div class="tx-list" id="dailyTxList">
+            <!-- Rendered by JS -->
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- ====================================================================
+         PAGE 2: MONTHLY OVERALL EXPENSES & CREDIT/DEBIT POSITIVE/NEGATIVE
+         ==================================================================== -->
+    <section id="pageMonthly" class="page-view">
+      
+      <!-- Month Selection Header -->
+      <div class="month-navigator-card">
+        <div class="month-picker-controls">
+          <button class="btn-nav-step" id="btnPrevMonth" title="Previous Month">‹</button>
+          <div class="current-month-display" id="displayMonthTitle">October 2026</div>
+          <button class="btn-nav-step" id="btnNextMonth" title="Next Month">›</button>
+        </div>
+
+        <div style="display:flex; align-items:center; gap: 10px;">
+          <input type="month" id="monthPickerInput" class="date-picker-input">
+          <button class="btn-today-pill" id="btnJumpCurrentMonth">Current Month</button>
+          <button class="filter-btn" id="btnExportMonthCSV" title="Export this month to CSV">📥 Export CSV</button>
+        </div>
+      </div>
+
+      <!-- High-Impact Positive / Negative Net Balance Executive Banner -->
+      <div class="net-banner positive" id="monthlyNetBanner">
+        <div class="net-banner-header">
+          <span class="net-banner-tag" id="netBannerBadge">● POSITIVE SURPLUS (SAVINGS)</span>
+          <span class="net-rate-badge" id="netRateBadge">Savings Rate: 45.2%</span>
+        </div>
+
+        <div class="net-banner-amount-row">
+          <div class="net-banner-amount" id="netBannerAmount">+ ₹34,500.00</div>
+        </div>
+
+        <p class="net-banner-desc" id="netBannerDesc">
+          You are in a positive financial position! Total credits received exceed total debits spent.
+        </p>
+
+        <!-- Gauge Bar -->
+        <div class="net-gauge-wrapper">
+          <div class="net-gauge-fill positive-fill" id="netGaugeFill" style="width: 70%;"></div>
+        </div>
+      </div>
+
+      <!-- Monthly Summary KPI Grid -->
+      <section class="metrics-grid">
+        <!-- Monthly Total Credits -->
+        <div class="glass-card metric-card credit-border">
+          <div class="metric-header">
+            <span class="metric-title">Total Monthly Credits</span>
+            <div class="metric-icon-box" style="background: var(--credit-bg); color: var(--credit-light);">💰</div>
+          </div>
+          <div class="metric-amount amount-credit" id="monthlyTotalCredit">₹0.00</div>
+          <div class="metric-sub" id="monthlyCreditCount">0 transactions</div>
+        </div>
+
+        <!-- Monthly Total Debits -->
+        <div class="glass-card metric-card debit-border">
+          <div class="metric-header">
+            <span class="metric-title">Total Monthly Debits</span>
+            <div class="metric-icon-box" style="background: var(--debit-bg); color: var(--debit-light);">💸</div>
+          </div>
+          <div class="metric-amount amount-debit" id="monthlyTotalDebit">₹0.00</div>
+          <div class="metric-sub" id="monthlyDebitCount">0 transactions</div>
+        </div>
+
+        <!-- Daily Average Spending -->
+        <div class="glass-card metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Daily Average Expense</span>
+            <div class="metric-icon-box" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">📅</div>
+          </div>
+          <div class="metric-amount amount-val" id="monthlyDailyAvg">₹0.00</div>
+          <div class="metric-sub" id="monthlyDaysCount">based on active days</div>
+        </div>
+
+        <!-- Top Expense Category -->
+        <div class="glass-card metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Highest Expense Category</span>
+            <div class="metric-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">🏷️</div>
+          </div>
+          <div class="metric-amount" style="font-size: 1.35rem;" id="monthlyTopCatName">-</div>
+          <div class="metric-sub" id="monthlyTopCatAmount">₹0.00 spent</div>
+        </div>
+      </section>
+
+      <!-- Charts Row: Daily Cashflow Trend (SVG) & Category Breakdown -->
+      <div class="charts-grid">
+        <!-- SVG Interactive Daily Cashflow Trend Chart -->
+        <div class="glass-card">
+          <div class="chart-card-header">
+            <div>
+              <h2 class="chart-card-title">Daily Cashflow Trend (Credits vs Debits)</h2>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Compare day-by-day inflow and outflow across this month</p>
+            </div>
+            <div class="chart-legend">
+              <div class="legend-item">
+                <span class="legend-dot" style="background: var(--credit-color);"></span>
+                <span>Credit</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot" style="background: var(--debit-color);"></span>
+                <span>Debit</span>
+              </div>
+            </div>
+          </div>
+          <div class="bar-chart-container" id="dailyCashflowChartBox">
+            <!-- Dynamic SVG Chart rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Category Distribution -->
+        <div class="glass-card">
+          <div class="chart-card-header">
+            <h2 class="chart-card-title">Expense Categories</h2>
+            <span class="badge" style="background:rgba(255,255,255,0.06); color:var(--text-secondary);" id="catCountBadge">0 Cats</span>
+          </div>
+          <div class="category-bars" id="categoryBreakdownList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Detailed Ledger -->
+      <div class="glass-card">
+        <div class="ledger-controls">
+          <div>
+            <h2 class="chart-card-title">All Transactions for this Month</h2>
+            <p style="font-size: 0.8rem; color: var(--text-muted);" id="monthlyTxTotalCount">0 total records</p>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <select id="monthlySortBy" class="date-picker-input">
+              <option value="date-desc">Date (Newest First)</option>
+              <option value="date-asc">Date (Oldest First)</option>
+              <option value="amount-desc">Highest Amount First</option>
+              <option value="amount-asc">Lowest Amount First</option>
+            </select>
+            <input type="search" id="searchMonthlyTx" class="search-box" placeholder="🔍 Search month records...">
+          </div>
+        </div>
+
+        <div class="tx-list" id="monthlyTxList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         PAGE 3: ANNUAL TRENDS & 12-MONTH SUMMARY
+         ==================================================================== -->
+    <section id="pageAnnual" class="page-view">
+      <div class="month-navigator-card">
+        <div class="month-picker-controls">
+          <button class="btn-nav-step" id="btnPrevYear" title="Previous Year">‹</button>
+          <div class="current-month-display" id="displayYearTitle">Year 2026</div>
+          <button class="btn-nav-step" id="btnNextYear" title="Next Year">›</button>
+        </div>
+        <div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">12-Month Performance Overview</span>
+        </div>
+      </div>
+
+      <div class="annual-grid" id="annualMonthsGrid">
+        <!-- 12 months rendered here -->
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         PAGE 4: BACKUP, DEMO DATA & SETTINGS
+         ==================================================================== -->
+    <section id="pageSettings" class="page-view">
+      <div class="settings-grid">
+        <!-- Sample Demo Data Card -->
+        <div class="glass-card">
+          <h2 class="chart-card-title">✨ Sample Demo Data</h2>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">
+            Populate realistic sample records with both positive and negative monthly balances, categories, and multiple payment modes to test all features instantly.
+          </p>
+          <button id="btnLoadDemoData" class="settings-action-btn btn-success">
+            <span>📥 Load Sample Demo Data</span>
+          </button>
+        </div>
+
+        <!-- Backup & Export -->
+        <div class="glass-card">
+          <h2 class="chart-card-title">💾 Backup & Restore</h2>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">
+            Safely download your personal financial records as a JSON file or restore from a backup.
+          </p>
+          <button id="btnExportJSON" class="settings-action-btn">
+            <span>📤 Download JSON Backup</span>
+          </button>
+          <button id="btnExportAllCSV" class="settings-action-btn">
+            <span>📊 Download All Transactions CSV</span>
+          </button>
+          <label class="settings-action-btn" style="cursor: pointer; margin-top: 10px;">
+            <span>📥 Restore from JSON File</span>
+            <input type="file" id="importJSONInput" accept=".json" style="display:none;">
+          </label>
+        </div>
+
+        <!-- Reset / Wipe Data -->
+        <div class="glass-card">
+          <h2 class="chart-card-title">⚠️ Data Management</h2>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:8px;">
+            All data is saved locally on your browser (LocalStorage). Resetting will delete all saved entries.
+          </p>
+          <button id="btnClearAllData" class="settings-action-btn btn-danger">
+            <span>🗑️ Clear All Saved Data</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ==========================================================================
+       JavaScript Logic: State, Storage, Analytics, and UI Handlers
+       ========================================================================== -->
+  <script>
+    (function() {
+      'use strict';
+
+      // ------------------------------------------------------------------------
+      // Configuration & Categories
+      // ------------------------------------------------------------------------
+      const STORAGE_KEY = 'fintrack_personal_expenses_v1';
+      const SETTINGS_KEY = 'fintrack_settings_v1';
+
+      const DEBIT_CATEGORIES = [
+        { id: 'groceries', name: 'Groceries & Provisions', icon: '🛒' },
+        { id: 'food', name: 'Food & Dining Out', icon: '🍔' },
+        { id: 'bills', name: 'Electricity & Utilities', icon: '⚡' },
+        { id: 'rent', name: 'House Rent & Maintenance', icon: '🏠' },
+        { id: 'travel', name: 'Transport, Petrol & Cab', icon: '🚗' },
+        { id: 'shopping', name: 'Shopping & Clothes', icon: '🛍️' },
+        { id: 'health', name: 'Health, Medicine & Doctor', icon: '💊' },
+        { id: 'entertainment', name: 'Movies & Subscriptions', icon: '🎬' },
+        { id: 'education', name: 'Education & Courses', icon: '📚' },
+        { id: 'debt_repay', name: 'Loan EMI / Debt Paid', icon: '💳' },
+        { id: 'personal', name: 'Personal & Miscellaneous', icon: '💼' }
+      ];
+
+      const CREDIT_CATEGORIES = [
+        { id: 'salary', name: 'Salary & Professional Fee', icon: '💰' },
+        { id: 'freelance', name: 'Freelance & Business', icon: '💻' },
+        { id: 'investment', name: 'Investment / Dividends', icon: '📈' },
+        { id: 'rent_income', name: 'Rental Inflow', icon: '🏠' },
+        { id: 'loan_received', name: 'Credit / Borrowed / Loan', icon: '🔄' },
+        { id: 'gift_cashback', name: 'Gifts & Cashback', icon: '🎁' },
+        { id: 'other_income', name: 'Other Income', icon: '➕' }
+      ];
+
+      // ------------------------------------------------------------------------
+      // State Management
+      // ------------------------------------------------------------------------
+      let transactions = [];
+      let currentCurrency = '₹';
+      let selectedDailyDate = getTodayDateStr(); // YYYY-MM-DD
+      let selectedMonth = getTodayDateStr().slice(0, 7); // YYYY-MM
+      let selectedYear = new Date().getFullYear();
+      let currentTxType = 'debit'; // 'debit' or 'credit'
+      let currentDailyFilter = 'all';
+
+      // ------------------------------------------------------------------------
+      // DOM Elements Cache
+      // ------------------------------------------------------------------------
+      const currencySelector = document.getElementById('currencySelector');
+      const inputCurrencyPrefix = document.getElementById('inputCurrencyPrefix');
+      
+      // Page Tabs
+      const navTabButtons = document.querySelectorAll('.nav-tab-btn');
+      const pageViews = document.querySelectorAll('.page-view');
+      const todayCountBadge = document.getElementById('todayCountBadge');
+      const monthlyStatusPill = document.getElementById('monthlyStatusPill');
+
+      // Daily Page elements
+      const displayDailyDate = document.getElementById('displayDailyDate');
+      const dailyDatePicker = document.getElementById('dailyDatePicker');
+      const btnPrevDay = document.getElementById('btnPrevDay');
+      const btnNextDay = document.getElementById('btnNextDay');
+      const btnJumpToday = document.getElementById('btnJumpToday');
+      const dailyTotalCredit = document.getElementById('dailyTotalCredit');
+      const dailyTotalDebit = document.getElementById('dailyTotalDebit');
+      const dailyCreditCount = document.getElementById('dailyCreditCount');
+      const dailyDebitCount = document.getElementById('dailyDebitCount');
+      const dailyNetBalance = document.getElementById('dailyNetBalance');
+      const dailyNetBadge = document.getElementById('dailyNetBadge');
+      const dailyNetCard = document.getElementById('dailyNetCard');
+      const dailyNetNote = document.getElementById('dailyNetNote');
+
+      // Form elements
+      const txForm = document.getElementById('txForm');
+      const txEditId = document.getElementById('txEditId');
+      const btnTypeDebit = document.getElementById('btnTypeDebit');
+      const btnTypeCredit = document.getElementById('btnTypeCredit');
+      const txAmount = document.getElementById('txAmount');
+      const txCategory = document.getElementById('txCategory');
+      const txDesc = document.getElementById('txDesc');
+      const txPaymentMode = document.getElementById('txPaymentMode');
+      const txDate = document.getElementById('txDate');
+      const btnSubmitTx = document.getElementById('btnSubmitTx');
+      const btnSubmitText = document.getElementById('btnSubmitText');
+      const btnCancelEdit = document.getElementById('btnCancelEdit');
+      const formHeaderTitle = document.getElementById('formHeaderTitle');
+      const dailyTxList = document.getElementById('dailyTxList');
+      const searchDailyTx = document.getElementById('searchDailyTx');
+
+      // Monthly Page elements
+      const displayMonthTitle = document.getElementById('displayMonthTitle');
+      const monthPickerInput = document.getElementById('monthPickerInput');
+      const btnPrevMonth = document.getElementById('btnPrevMonth');
+      const btnNextMonth = document.getElementById('btnNextMonth');
+      const btnJumpCurrentMonth = document.getElementById('btnJumpCurrentMonth');
+      const btnExportMonthCSV = document.getElementById('btnExportMonthCSV');
+
+      const monthlyNetBanner = document.getElementById('monthlyNetBanner');
+      const netBannerBadge = document.getElementById('netBannerBadge');
+      const netRateBadge = document.getElementById('netRateBadge');
+      const netBannerAmount = document.getElementById('netBannerAmount');
+      const netBannerDesc = document.getElementById('netBannerDesc');
+      const netGaugeFill = document.getElementById('netGaugeFill');
+
+      const monthlyTotalCredit = document.getElementById('monthlyTotalCredit');
+      const monthlyTotalDebit = document.getElementById('monthlyTotalDebit');
+      const monthlyCreditCount = document.getElementById('monthlyCreditCount');
+      const monthlyDebitCount = document.getElementById('monthlyDebitCount');
+      const monthlyDailyAvg = document.getElementById('monthlyDailyAvg');
+      const monthlyDaysCount = document.getElementById('monthlyDaysCount');
+      const monthlyTopCatName = document.getElementById('monthlyTopCatName');
+      const monthlyTopCatAmount = document.getElementById('monthlyTopCatAmount');
+      const dailyCashflowChartBox = document.getElementById('dailyCashflowChartBox');
+      const categoryBreakdownList = document.getElementById('categoryBreakdownList');
+      const catCountBadge = document.getElementById('catCountBadge');
+      const monthlyTxList = document.getElementById('monthlyTxList');
+      const monthlyTxTotalCount = document.getElementById('monthlyTxTotalCount');
+      const monthlySortBy = document.getElementById('monthlySortBy');
+      const searchMonthlyTx = document.getElementById('searchMonthlyTx');
+
+      // Annual Page elements
+      const displayYearTitle = document.getElementById('displayYearTitle');
+      const btnPrevYear = document.getElementById('btnPrevYear');
+      const btnNextYear = document.getElementById('btnNextYear');
+      const annualMonthsGrid = document.getElementById('annualMonthsGrid');
+
+      // Settings & Demo buttons
+      const btnLoadDemoData = document.getElementById('btnLoadDemoData');
+      const btnExportJSON = document.getElementById('btnExportJSON');
+      const btnExportAllCSV = document.getElementById('btnExportAllCSV');
+      const importJSONInput = document.getElementById('importJSONInput');
+      const btnClearAllData = document.getElementById('btnClearAllData');
+      const btnQuickAddNav = document.getElementById('btnQuickAddNav');
+
+      // ------------------------------------------------------------------------
+      // Date Helpers
+      // ------------------------------------------------------------------------
+      function getTodayDateStr() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      function formatReadableDate(dateStr) {
+        if (!dateStr) return '';
+        const [y, m, d] = dateStr.split('-');
+        const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+        const todayStr = getTodayDateStr();
+        const prefix = dateStr === todayStr ? 'Today, ' : '';
+        return prefix + dateObj.toLocaleDateString('en-US', {
+          weekday: 'short',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        });
+      }
+
+      function formatReadableMonth(monthStr) {
+        if (!monthStr) return '';
+        const [y, m] = monthStr.split('-');
+        const dateObj = new Date(parseInt(y), parseInt(m) - 1, 1);
+        return dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      }
+
+      function formatCurrency(num) {
+        const val = Number(num) || 0;
+        return `${currentCurrency} ${val.toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`;
+      }
+
+      // ------------------------------------------------------------------------
+      // Data Persistence (LocalStorage)
+      // ------------------------------------------------------------------------
+      function loadData() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            transactions = JSON.parse(raw);
+          } else {
+            // First time load: provide sample initial data so user sees active state
+            loadDefaultSampleData();
+          }
+
+          const rawSettings = localStorage.getItem(SETTINGS_KEY);
+          if (rawSettings) {
+            const settings = JSON.parse(rawSettings);
+            if (settings.currency) {
+              currentCurrency = settings.currency;
+              currencySelector.value = currentCurrency;
+              inputCurrencyPrefix.textContent = currentCurrency;
+            }
+          }
+        } catch (e) {
+          console.error('Error loading data from localStorage', e);
+          transactions = [];
+        }
+      }
+
+      function saveData() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify({ currency: currentCurrency }));
+        } catch (e) {
+          console.error('Error saving data to localStorage', e);
+          showToast('Storage full or error saving data!', 'error');
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // Category Dropdown Population
+      // ------------------------------------------------------------------------
+      function populateCategorySelect() {
+        const list = currentTxType === 'credit' ? CREDIT_CATEGORIES : DEBIT_CATEGORIES;
+        txCategory.innerHTML = '';
+        list.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.name;
+          opt.textContent = `${c.icon} ${c.name}`;
+          txCategory.appendChild(opt);
+        });
+      }
+
+      function setTxType(type) {
+        currentTxType = type;
+        if (type === 'credit') {
+          btnTypeCredit.className = 'type-btn active-credit';
+          btnTypeDebit.className = 'type-btn';
+          btnSubmitTx.className = 'btn-submit-entry btn-submit-credit';
+          btnSubmitText.textContent = txEditId.value ? 'Update Credit Income' : 'Save Credit Income';
+        } else {
+          btnTypeDebit.className = 'type-btn active-debit';
+          btnTypeCredit.className = 'type-btn';
+          btnSubmitTx.className = 'btn-submit-entry btn-submit-debit';
+          btnSubmitText.textContent = txEditId.value ? 'Update Debit Expense' : 'Save Debit Expense';
+        }
+        populateCategorySelect();
+      }
+
+      // ------------------------------------------------------------------------
+      // Navigation / Tab Router
+      // ------------------------------------------------------------------------
+      function switchTab(targetId) {
+        navTabButtons.forEach(btn => {
+          if (btn.dataset.target === targetId) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        });
+
+        pageViews.forEach(page => {
+          if (page.id === targetId) {
+            page.classList.add('active');
+          } else {
+            page.classList.remove('active');
+          }
+        });
+
+        // Trigger view renders
+        if (targetId === 'pageDaily') {
+          renderDailyView();
+        } else if (targetId === 'pageMonthly') {
+          renderMonthlyView();
+        } else if (targetId === 'pageAnnual') {
+          renderAnnualView();
+        }
+
+        // Update URL hash
+        window.location.hash = targetId.replace('page', '').toLowerCase();
+      }
+
+      // ------------------------------------------------------------------------
+      // Render: Daily View
+      // ------------------------------------------------------------------------
+      function renderDailyView() {
+        displayDailyDate.textContent = formatReadableDate(selectedDailyDate);
+        dailyDatePicker.value = selectedDailyDate;
+
+        // Filter transactions for this day
+        const dayTxs = transactions.filter(t => t.date === selectedDailyDate);
+
+        let totalCredit = 0;
+        let totalDebit = 0;
+        let creditCount = 0;
+        let debitCount = 0;
+
+        dayTxs.forEach(t => {
+          const amt = Number(t.amount) || 0;
+          if (t.type === 'credit') {
+            totalCredit += amt;
+            creditCount++;
+          } else {
+            totalDebit += amt;
+            debitCount++;
+          }
+        });
+
+        dailyTotalCredit.textContent = formatCurrency(totalCredit);
+        dailyTotalDebit.textContent = formatCurrency(totalDebit);
+        dailyCreditCount.textContent = `${creditCount} credit ${creditCount === 1 ? 'entry' : 'entries'}`;
+        dailyDebitCount.textContent = `${debitCount} debit ${debitCount === 1 ? 'entry' : 'entries'}`;
+
+        const net = totalCredit - totalDebit;
+        dailyNetBalance.textContent = (net >= 0 ? '+ ' : '- ') + formatCurrency(Math.abs(net));
+
+        dailyNetCard.classList.remove('net-border-pos', 'net-border-neg', 'card-positive-glow', 'card-negative-glow');
+
+        if (net > 0) {
+          dailyNetBalance.className = 'metric-amount amount-credit';
+          dailyNetBadge.className = 'badge badge-positive';
+          dailyNetBadge.textContent = '● Positive Surplus';
+          dailyNetCard.classList.add('net-border-pos', 'card-positive-glow');
+          dailyNetNote.textContent = 'Savings surplus for this day';
+        } else if (net < 0) {
+          dailyNetBalance.className = 'metric-amount amount-debit';
+          dailyNetBadge.className = 'badge badge-negative';
+          dailyNetBadge.textContent = '● Negative Deficit';
+          dailyNetCard.classList.add('net-border-neg', 'card-negative-glow');
+          dailyNetNote.textContent = 'Debits exceeded credits for this day';
+        } else {
+          dailyNetBalance.className = 'metric-amount amount-val';
+          dailyNetBadge.className = 'badge';
+          dailyNetBadge.style.background = 'rgba(255,255,255,0.08)';
+          dailyNetBadge.style.color = 'var(--text-secondary)';
+          dailyNetBadge.textContent = 'Break-even';
+          dailyNetNote.textContent = 'No net variance for this day';
+        }
+
+        // Filter by Type & Search
+        const searchQuery = (searchDailyTx.value || '').trim().toLowerCase();
+        let displayList = dayTxs;
+
+        if (currentDailyFilter === 'credit') {
+          displayList = displayList.filter(t => t.type === 'credit');
+        } else if (currentDailyFilter === 'debit') {
+          displayList = displayList.filter(t => t.type === 'debit');
+        }
+
+        if (searchQuery) {
+          displayList = displayList.filter(t => 
+            (t.desc && t.desc.toLowerCase().includes(searchQuery)) ||
+            (t.category && t.category.toLowerCase().includes(searchQuery)) ||
+            (t.paymentMode && t.paymentMode.toLowerCase().includes(searchQuery))
+          );
+        }
+
+        // Sort: newest createdAt first
+        displayList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        renderTxItemsList(dailyTxList, displayList, true);
+
+        // Update top badge count for today
+        const todayItems = transactions.filter(t => t.date === getTodayDateStr());
+        todayCountBadge.textContent = todayItems.length;
+      }
+
+      function renderTxItemsList(container, items, isDaily) {
+        container.innerHTML = '';
+
+        if (!items || items.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">📝</div>
+              <p style="font-weight: 600; margin-bottom: 4px;">No transactions found</p>
+              <p style="font-size: 0.82rem;">Use the form to record a new Credit or Debit entry.</p>
+            </div>
+          `;
+          return;
+        }
+
+        items.forEach(t => {
+          const isCredit = t.type === 'credit';
+          const catIcon = getCategoryIcon(t.category, t.type);
+
+          const itemEl = document.createElement('div');
+          itemEl.className = 'tx-item';
+
+          itemEl.innerHTML = `
+            <div class="tx-left">
+              <div class="tx-cat-icon ${isCredit ? 'credit-icon' : 'debit-icon'}">
+                ${catIcon}
+              </div>
+              <div class="tx-details">
+                <div class="tx-desc">${escapeHtml(t.desc || t.category)}</div>
+                <div class="tx-meta">
+                  <span class="meta-tag">${escapeHtml(t.category)}</span>
+                  <span class="meta-tag">💳 ${escapeHtml(t.paymentMode || 'UPI')}</span>
+                  <span>${isDaily ? (t.time || '') : formatReadableDate(t.date)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tx-right">
+              <div>
+                <div class="tx-amount-display ${isCredit ? 'amount-credit' : 'amount-debit'}">
+                  ${isCredit ? '+' : '-'} ${formatCurrency(t.amount)}
+                </div>
+                <div style="font-size: 0.72rem; text-align: right; margin-top: 2px;">
+                  <span class="badge ${isCredit ? 'badge-credit' : 'badge-debit'}">
+                    ${isCredit ? 'Credit' : 'Debit'}
+                  </span>
+                </div>
+              </div>
+
+              <div class="tx-actions">
+                <button class="btn-action-icon btn-action-edit" data-id="${t.id}" title="Edit Transaction">✏️</button>
+                <button class="btn-action-icon btn-action-delete" data-id="${t.id}" title="Delete Transaction">🗑️</button>
+              </div>
+            </div>
+          `;
+
+          container.appendChild(itemEl);
+        });
+
+        // Attach action handlers
+        container.querySelectorAll('.btn-action-edit').forEach(btn => {
+          btn.addEventListener('click', () => editTransaction(btn.dataset.id));
+        });
+
+        container.querySelectorAll('.btn-action-delete').forEach(btn => {
+          btn.addEventListener('click', () => deleteTransaction(btn.dataset.id));
+        });
+      }
+
+      function getCategoryIcon(catName, type) {
+        const pool = type === 'credit' ? CREDIT_CATEGORIES : DEBIT_CATEGORIES;
+        const found = pool.find(c => c.name.toLowerCase() === (catName || '').toLowerCase());
+        return found ? found.icon : (type === 'credit' ? '🟢' : '🔴');
+      }
+
+      // ------------------------------------------------------------------------
+      // Render: Monthly Overall Expenses & Net Balance Analytics
+      // ------------------------------------------------------------------------
+      function renderMonthlyView() {
+        displayMonthTitle.textContent = formatReadableMonth(selectedMonth);
+        monthPickerInput.value = selectedMonth;
+
+        const monthTxs = transactions.filter(t => t.date && t.date.startsWith(selectedMonth));
+
+        let totalCredit = 0;
+        let totalDebit = 0;
+        let creditCount = 0;
+        let debitCount = 0;
+        const categoryDebitMap = {};
+        const dailyDebitMap = {};
+        const dailyCreditMap = {};
+
+        monthTxs.forEach(t => {
+          const amt = Number(t.amount) || 0;
+          const dayNum = parseInt(t.date.split('-')[2], 10);
+
+          if (t.type === 'credit') {
+            totalCredit += amt;
+            creditCount++;
+            dailyCreditMap[dayNum] = (dailyCreditMap[dayNum] || 0) + amt;
+          } else {
+            totalDebit += amt;
+            debitCount++;
+            categoryDebitMap[t.category] = (categoryDebitMap[t.category] || 0) + amt;
+            dailyDebitMap[dayNum] = (dailyDebitMap[dayNum] || 0) + amt;
+          }
+        });
+
+        monthlyTotalCredit.textContent = formatCurrency(totalCredit);
+        monthlyTotalDebit.textContent = formatCurrency(totalDebit);
+        monthlyCreditCount.textContent = `${creditCount} credit ${creditCount === 1 ? 'transaction' : 'transactions'}`;
+        monthlyDebitCount.textContent = `${debitCount} debit ${debitCount === 1 ? 'transaction' : 'transactions'}`;
+
+        // Net Balance Calculation
+        const net = totalCredit - totalDebit;
+        const isPositive = net >= 0;
+
+        // Executive Net Banner Update
+        if (isPositive) {
+          monthlyNetBanner.className = 'net-banner positive';
+          netBannerBadge.textContent = '● POSITIVE SURPLUS (PROFITABLE MONTH)';
+          netBannerAmount.textContent = '+ ' + formatCurrency(net);
+          
+          let savingsRate = 0;
+          if (totalCredit > 0) {
+            savingsRate = Math.min(100, Math.round((net / totalCredit) * 100));
+          }
+          netRateBadge.textContent = `Savings Rate: ${savingsRate}% saved`;
+          netBannerDesc.textContent = `Excellent financial status! Your total income credits exceed your total expense debits by ${formatCurrency(net)}. You retain ${savingsRate}% of what you earned.`;
+          
+          netGaugeFill.className = 'net-gauge-fill positive-fill';
+          netGaugeFill.style.width = `${Math.max(5, savingsRate)}%`;
+
+          monthlyStatusPill.textContent = '+ Surplus';
+          monthlyStatusPill.style.background = 'rgba(16, 185, 129, 0.3)';
+          monthlyStatusPill.style.color = '#34d399';
+        } else {
+          monthlyNetBanner.className = 'net-banner negative';
+          netBannerBadge.textContent = '⚠️ DEFICIT ALERT (OVERSPENT MONTH)';
+          netBannerAmount.textContent = '- ' + formatCurrency(Math.abs(net));
+
+          let overspendPercent = 0;
+          if (totalCredit > 0) {
+            overspendPercent = Math.round((totalDebit / totalCredit) * 100);
+          } else {
+            overspendPercent = 100;
+          }
+          netRateBadge.textContent = `Deficit: ${overspendPercent}% spent of income`;
+          netBannerDesc.textContent = `Alert: Your debits exceed your credits by ${formatCurrency(Math.abs(net))}. You are operating at a negative net cashflow. Check the top categories below to cut expenses.`;
+
+          netGaugeFill.className = 'net-gauge-fill negative-fill';
+          netGaugeFill.style.width = '100%';
+
+          monthlyStatusPill.textContent = '- Deficit';
+          monthlyStatusPill.style.background = 'rgba(244, 63, 94, 0.3)';
+          monthlyStatusPill.style.color = '#fb7185';
+        }
+
+        // Daily Average Spend Calculation
+        const daysInMonth = new Date(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]), 0).getDate();
+        const activeDaysCount = Object.keys(dailyDebitMap).length || 1;
+        const dailyAvg = totalDebit / (activeDaysCount || 1);
+        monthlyDailyAvg.textContent = formatCurrency(dailyAvg);
+        monthlyDaysCount.textContent = `across ${activeDaysCount} active spend ${activeDaysCount === 1 ? 'day' : 'days'}`;
+
+        // Highest Expense Category
+        let topCat = '-';
+        let topCatAmt = 0;
+        Object.entries(categoryDebitMap).forEach(([cat, amt]) => {
+          if (amt > topCatAmt) {
+            topCatAmt = amt;
+            topCat = cat;
+          }
+        });
+        monthlyTopCatName.textContent = topCat;
+        monthlyTopCatAmount.textContent = `${formatCurrency(topCatAmt)} total spent`;
+
+        // Render SVG Daily Bar Chart
+        renderDailyCashflowChart(daysInMonth, dailyCreditMap, dailyDebitMap);
+
+        // Render Category Breakdown Bars
+        renderCategoryBreakdown(categoryDebitMap, totalDebit);
+
+        // Render Monthly Table
+        renderMonthlyLedger(monthTxs);
+      }
+
+      // ------------------------------------------------------------------------
+      // Render: SVG Daily Cashflow Trend Bar Chart
+      // ------------------------------------------------------------------------
+      function renderDailyCashflowChart(daysInMonth, creditMap, debitMap) {
+        dailyCashflowChartBox.innerHTML = '';
+
+        let maxVal = 500;
+        for (let d = 1; d <= daysInMonth; d++) {
+          const c = creditMap[d] || 0;
+          const deb = debitMap[d] || 0;
+          if (c > maxVal) maxVal = c;
+          if (deb > maxVal) maxVal = deb;
+        }
+
+        const width = 800;
+        const height = 240;
+        const padX = 35;
+        const padY = 25;
+        const chartW = width - padX - 10;
+        const chartH = height - padY * 2;
+        const slotW = chartW / daysInMonth;
+        const barW = Math.max(3, slotW * 0.35);
+
+        let svgHtml = `
+          <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:100%; display:block; overflow:visible;">
+            <defs>
+              <linearGradient id="chartCreditGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#34d399" />
+                <stop offset="100%" stop-color="#10b981" />
+              </linearGradient>
+              <linearGradient id="chartDebitGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fb7185" />
+                <stop offset="100%" stop-color="#f43f5e" />
+              </linearGradient>
+            </defs>
+
+            <!-- Grid Lines -->
+            <line x1="${padX}" y1="${padY}" x2="${width - 10}" y2="${padY}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+            <line x1="${padX}" y1="${padY + chartH / 2}" x2="${width - 10}" y2="${padY + chartH / 2}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+            <line x1="${padX}" y1="${padY + chartH}" x2="${width - 10}" y2="${padY + chartH}" stroke="rgba(255,255,255,0.15)"/>
+        `;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const c = creditMap[d] || 0;
+          const deb = debitMap[d] || 0;
+          const xSlotCenter = padX + (d - 0.5) * slotW;
+
+          const creditH = (c / maxVal) * chartH;
+          const debitH = (deb / maxVal) * chartH;
+
+          const creditY = padY + chartH - creditH;
+          const debitY = padY + chartH - debitH;
+
+          // Credit Bar
+          if (c > 0) {
+            svgHtml += `
+              <rect x="${xSlotCenter - barW - 1}" y="${creditY}" width="${barW}" height="${creditH}" 
+                    rx="2" fill="url(#chartCreditGrad)" opacity="0.9">
+                <title>Day ${d}: Credit +${formatCurrency(c)}</title>
+              </rect>
+            `;
+          }
+
+          // Debit Bar
+          if (deb > 0) {
+            svgHtml += `
+              <rect x="${xSlotCenter + 1}" y="${debitY}" width="${barW}" height="${debitH}" 
+                    rx="2" fill="url(#chartDebitGrad)" opacity="0.9">
+                <title>Day ${d}: Debit -${formatCurrency(deb)}</title>
+              </rect>
+            `;
+          }
+
+          // Day Label on X Axis every 5 days or 1st/last
+          if (d === 1 || d % 5 === 0 || d === daysInMonth) {
+            svgHtml += `
+              <text x="${xSlotCenter}" y="${height - 6}" font-size="10" fill="#64748b" text-anchor="middle" font-family="var(--font-mono)">
+                ${d}
+              </text>
+            `;
+          }
+        }
+
+        svgHtml += `</svg>`;
+        dailyCashflowChartBox.innerHTML = svgHtml;
+      }
+
+      // ------------------------------------------------------------------------
+      // Render: Category Breakdown Progress Bars
+      // ------------------------------------------------------------------------
+      function renderCategoryBreakdown(catMap, totalDebit) {
+        categoryBreakdownList.innerHTML = '';
+        const entries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+
+        catCountBadge.textContent = `${entries.length} Categories`;
+
+        if (entries.length === 0) {
+          categoryBreakdownList.innerHTML = `
+            <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+              No debit expenses for this month yet.
+            </div>
+          `;
+          return;
+        }
+
+        const colors = ['#6366f1', '#ec4899', '#f59e0b', '#06b6d4', '#10b981', '#8b5cf6', '#3b82f6'];
+
+        entries.forEach(([cat, amt], idx) => {
+          const pct = totalDebit > 0 ? Math.round((amt / totalDebit) * 100) : 0;
+          const color = colors[idx % colors.length];
+
+          const item = document.createElement('div');
+          item.className = 'cat-bar-item';
+          item.innerHTML = `
+            <div class="cat-bar-meta">
+              <span style="display:flex; align-items:center; gap:6px;">
+                ${getCategoryIcon(cat, 'debit')} <span>${escapeHtml(cat)}</span>
+              </span>
+              <span class="amount-val" style="color:var(--text-secondary);">
+                ${formatCurrency(amt)} <span style="font-size:0.75rem; color:var(--text-muted);">(${pct}%)</span>
+              </span>
+            </div>
+            <div class="cat-bar-progress">
+              <div class="cat-bar-fill" style="width: ${pct}%; background: ${color};"></div>
+            </div>
+          `;
+          categoryBreakdownList.appendChild(item);
+        });
+      }
+
+      // ------------------------------------------------------------------------
+      // Render: Monthly Detailed Ledger
+      // ------------------------------------------------------------------------
+      function renderMonthlyLedger(monthTxs) {
+        monthlyTxTotalCount.textContent = `${monthTxs.length} records found`;
+
+        let displayTxs = [...monthTxs];
+        const sortType = monthlySortBy.value;
+
+        if (sortType === 'date-desc') {
+          displayTxs.sort((a, b) => b.date.localeCompare(a.date) || ((b.createdAt || 0) - (a.createdAt || 0)));
+        } else if (sortType === 'date-asc') {
+          displayTxs.sort((a, b) => a.date.localeCompare(b.date) || ((a.createdAt || 0) - (b.createdAt || 0)));
+        } else if (sortType === 'amount-desc') {
+          displayTxs.sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+        } else if (sortType === 'amount-asc') {
+          displayTxs.sort((a, b) => (Number(a.amount) || 0) - (Number(b.amount) || 0));
+        }
+
+        const query = (searchMonthlyTx.value || '').trim().toLowerCase();
+        if (query) {
+          displayTxs = displayTxs.filter(t => 
+            (t.desc && t.desc.toLowerCase().includes(query)) ||
+            (t.category && t.category.toLowerCase().includes(query)) ||
+            (t.paymentMode && t.paymentMode.toLowerCase().includes(query))
+          );
+        }
+
+        renderTxItemsList(monthlyTxList, displayTxs, false);
+      }
+
+      // ------------------------------------------------------------------------
+      // Render: Annual View (12 Months)
+      // ------------------------------------------------------------------------
+      function renderAnnualView() {
+        displayYearTitle.textContent = `Year ${selectedYear}`;
+        annualMonthsGrid.innerHTML = '';
+
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+
+        monthNames.forEach((name, idx) => {
+          const mStr = `${selectedYear}-${String(idx + 1).padStart(2, '0')}`;
+          const mItems = transactions.filter(t => t.date && t.date.startsWith(mStr));
+
+          let credits = 0;
+          let debits = 0;
+          mItems.forEach(t => {
+            const a = Number(t.amount) || 0;
+            if (t.type === 'credit') credits += a;
+            else debits += a;
+          });
+
+          const net = credits - debits;
+          const isPos = net >= 0;
+
+          const box = document.createElement('div');
+          box.className = `month-summary-box ${isPos ? 'card-positive-glow' : 'card-negative-glow'}`;
+          box.style.cursor = 'pointer';
+
+          box.innerHTML = `
+            <div class="month-box-title">
+              <span>${name}</span>
+              <span class="badge ${isPos ? 'badge-positive' : 'badge-negative'}">
+                ${isPos ? '+ Positive' : '- Deficit'}
+              </span>
+            </div>
+
+            <div class="month-box-row">
+              <span>Total Credits:</span>
+              <span class="amount-val amount-credit">+ ${formatCurrency(credits)}</span>
+            </div>
+
+            <div class="month-box-row">
+              <span>Total Debits:</span>
+              <span class="amount-val amount-debit">- ${formatCurrency(debits)}</span>
+            </div>
+
+            <div class="month-box-row" style="border-top:1px solid var(--border-subtle); padding-top:8px; font-weight:700;">
+              <span>Net Variance:</span>
+              <span class="amount-val ${isPos ? 'amount-credit' : 'amount-debit'}">
+                ${isPos ? '+' : '-'} ${formatCurrency(Math.abs(net))}
+              </span>
+            </div>
+          `;
+
+          // Clicking a month card navigates to Monthly view for that month!
+          box.addEventListener('click', () => {
+            selectedMonth = mStr;
+            switchTab('pageMonthly');
+          });
+
+          annualMonthsGrid.appendChild(box);
+        });
+      }
+
+      // ------------------------------------------------------------------------
+      // Form Actions: Add / Edit / Delete
+      // ------------------------------------------------------------------------
+      txForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const amt = parseFloat(txAmount.value);
+        if (isNaN(amt) || amt <= 0) {
+          showToast('Please enter a valid amount greater than 0', 'error');
+          txAmount.focus();
+          return;
+        }
+
+        const editId = txEditId.value;
+        const now = new Date();
+        const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        if (editId) {
+          // Editing existing transaction
+          const idx = transactions.findIndex(t => t.id === editId);
+          if (idx !== -1) {
+            transactions[idx] = {
+              ...transactions[idx],
+              type: currentTxType,
+              amount: amt,
+              category: txCategory.value,
+              desc: txDesc.value.trim(),
+              paymentMode: txPaymentMode.value,
+              date: txDate.value
+            };
+            showToast('Transaction updated successfully', 'success');
+          }
+        } else {
+          // Creating new transaction
+          const newTx = {
+            id: 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+            type: currentTxType,
+            amount: amt,
+            category: txCategory.value,
+            desc: txDesc.value.trim(),
+            paymentMode: txPaymentMode.value,
+            date: txDate.value,
+            time: currentTimeStr,
+            createdAt: Date.now()
+          };
+          transactions.unshift(newTx);
+          showToast(`${currentTxType === 'credit' ? 'Credit income' : 'Debit expense'} recorded!`, 'success');
+        }
+
+        saveData();
+        resetForm();
+
+        // Refresh views
+        renderDailyView();
+        renderMonthlyView();
+      });
+
+      function editTransaction(id) {
+        const item = transactions.find(t => t.id === id);
+        if (!item) return;
+
+        // Switch to Daily view and populate form
+        selectedDailyDate = item.date;
+        selectedMonth = item.date.slice(0, 7);
+        switchTab('pageDaily');
+
+        txEditId.value = item.id;
+        setTxType(item.type);
+        txAmount.value = item.amount;
+        populateCategorySelect();
+        txCategory.value = item.category;
+        txDesc.value = item.desc || '';
+        txPaymentMode.value = item.paymentMode || 'UPI';
+        txDate.value = item.date;
+
+        formHeaderTitle.textContent = '✏️ Edit Transaction';
+        btnSubmitText.textContent = 'Save Changes';
+        btnCancelEdit.style.display = 'block';
+
+        // Scroll to form smoothly
+        txForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      function deleteTransaction(id) {
+        if (!confirm('Are you sure you want to delete this transaction record?')) return;
+        transactions = transactions.filter(t => t.id !== id);
+        saveData();
+        showToast('Record deleted', 'info');
+        renderDailyView();
+        renderMonthlyView();
+      }
+
+      function resetForm() {
+        txEditId.value = '';
+        txAmount.value = '';
+        txDesc.value = '';
+        txDate.value = selectedDailyDate;
+        formHeaderTitle.textContent = '⚡ New Entry';
+        btnCancelEdit.style.display = 'none';
+        setTxType(currentTxType);
+      }
+
+      btnCancelEdit.addEventListener('click', resetForm);
+
+      // Quick amount chips (+50, +100, etc.)
+      document.querySelectorAll('.chip-btn').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const add = parseFloat(chip.dataset.add) || 0;
+          const curr = parseFloat(txAmount.value) || 0;
+          txAmount.value = (curr + add).toFixed(2);
+        });
+      });
+
+      // Type Buttons in Form
+      btnTypeDebit.addEventListener('click', () => setTxType('debit'));
+      btnTypeCredit.addEventListener('click', () => setTxType('credit'));
+
+      // Quick Add from Top Header
+      btnQuickAddNav.addEventListener('click', () => {
+        switchTab('pageDaily');
+        resetForm();
+        txAmount.focus();
+      });
+
+      // ------------------------------------------------------------------------
+      // Date Picker & Navigator Handlers
+      // ------------------------------------------------------------------------
+      btnPrevDay.addEventListener('click', () => {
+        shiftDailyDate(-1);
+      });
+
+      btnNextDay.addEventListener('click', () => {
+        shiftDailyDate(1);
+      });
+
+      btnJumpToday.addEventListener('click', () => {
+        selectedDailyDate = getTodayDateStr();
+        txDate.value = selectedDailyDate;
+        renderDailyView();
+      });
+
+      dailyDatePicker.addEventListener('change', (e) => {
+        if (e.target.value) {
+          selectedDailyDate = e.target.value;
+          txDate.value = selectedDailyDate;
+          renderDailyView();
+        }
+      });
+
+      function shiftDailyDate(offsetDays) {
+        const [y, m, d] = selectedDailyDate.split('-').map(Number);
+        const dt = new Date(y, m - 1, d + offsetDays);
+        const ny = dt.getFullYear();
+        const nm = String(dt.getMonth() + 1).padStart(2, '0');
+        const nd = String(dt.getDate()).padStart(2, '0');
+        selectedDailyDate = `${ny}-${nm}-${nd}`;
+        txDate.value = selectedDailyDate;
+        renderDailyView();
+      }
+
+      // Daily Filter Chips
+      document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentDailyFilter = btn.dataset.filter;
+          renderDailyView();
+        });
+      });
+
+      searchDailyTx.addEventListener('input', () => {
+        renderDailyView();
+      });
+
+      // ------------------------------------------------------------------------
+      // Month Navigator Handlers
+      // ------------------------------------------------------------------------
+      btnPrevMonth.addEventListener('click', () => {
+        shiftMonth(-1);
+      });
+
+      btnNextMonth.addEventListener('click', () => {
+        shiftMonth(1);
+      });
+
+      btnJumpCurrentMonth.addEventListener('click', () => {
+        selectedMonth = getTodayDateStr().slice(0, 7);
+        renderMonthlyView();
+      });
+
+      monthPickerInput.addEventListener('change', (e) => {
+        if (e.target.value) {
+          selectedMonth = e.target.value;
+          renderMonthlyView();
+        }
+      });
+
+      monthlySortBy.addEventListener('change', () => {
+        renderMonthlyView();
+      });
+
+      searchMonthlyTx.addEventListener('input', () => {
+        renderMonthlyView();
+      });
+
+      function shiftMonth(offset) {
+        const [y, m] = selectedMonth.split('-').map(Number);
+        const dt = new Date(y, m - 1 + offset, 1);
+        const ny = dt.getFullYear();
+        const nm = String(dt.getMonth() + 1).padStart(2, '0');
+        selectedMonth = `${ny}-${nm}`;
+        renderMonthlyView();
+      }
+
+      // Year Navigator Handlers
+      btnPrevYear.addEventListener('click', () => {
+        selectedYear--;
+        renderAnnualView();
+      });
+
+      btnNextYear.addEventListener('click', () => {
+        selectedYear++;
+        renderAnnualView();
+      });
+
+      // ------------------------------------------------------------------------
+      // Currency Switcher
+      // ------------------------------------------------------------------------
+      currencySelector.addEventListener('change', (e) => {
+        currentCurrency = e.target.value;
+        inputCurrencyPrefix.textContent = currentCurrency;
+        saveData();
+        renderDailyView();
+        renderMonthlyView();
+        renderAnnualView();
+        showToast(`Currency updated to ${currentCurrency}`, 'info');
+      });
+
+      // ------------------------------------------------------------------------
+      // Export & Backup Handlers
+      // ------------------------------------------------------------------------
+      btnExportJSON.addEventListener('click', () => {
+        const dataStr = JSON.stringify(transactions, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `FinLedger_Backup_${getTodayDateStr()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('JSON Backup downloaded!', 'success');
+      });
+
+      btnExportMonthCSV.addEventListener('click', () => {
+        exportCSV(transactions.filter(t => t.date && t.date.startsWith(selectedMonth)), `FinLedger_${selectedMonth}.csv`);
+      });
+
+      btnExportAllCSV.addEventListener('click', () => {
+        exportCSV(transactions, `FinLedger_All_${getTodayDateStr()}.csv`);
+      });
+
+      function exportCSV(list, filename) {
+        if (!list || list.length === 0) {
+          showToast('No records to export', 'error');
+          return;
+        }
+
+        const headers = ['ID', 'Date', 'Time', 'Type (Credit/Debit)', 'Amount', 'Category', 'Description', 'Payment Mode'];
+        const rows = list.map(t => [
+          t.id,
+          t.date,
+          t.time || '',
+          t.type.toUpperCase(),
+          t.amount,
+          `"${(t.category || '').replace(/"/g, '""')}"`,
+          `"${(t.desc || '').replace(/"/g, '""')}"`,
+          `"${(t.paymentMode || '').replace(/"/g, '""')}"`
+        ]);
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`Exported ${list.length} rows to CSV!`, 'success');
+      }
+
+      // JSON Restore
+      importJSONInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const imported = JSON.parse(event.target.result);
+            if (Array.isArray(imported)) {
+              transactions = imported;
+              saveData();
+              renderDailyView();
+              renderMonthlyView();
+              showToast(`Imported ${imported.length} transactions successfully!`, 'success');
+            } else {
+              showToast('Invalid JSON file structure', 'error');
+            }
+          } catch (err) {
+            showToast('Failed to parse JSON file', 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // Clear All Data
+      btnClearAllData.addEventListener('click', () => {
+        if (confirm('CRITICAL WARNING: This will permanently delete all your financial transactions. Are you absolutely sure?')) {
+          transactions = [];
+          saveData();
+          renderDailyView();
+          renderMonthlyView();
+          renderAnnualView();
+          showToast('All transaction records wiped.', 'info');
+        }
+      });
+
+      // Load Sample Demo Data
+      btnLoadDemoData.addEventListener('click', () => {
+        if (confirm('Load pre-configured sample demo data with positive and negative monthly balances?')) {
+          loadDefaultSampleData();
+          saveData();
+          renderDailyView();
+          renderMonthlyView();
+          renderAnnualView();
+          showToast('Sample financial data loaded successfully!', 'success');
+        }
+      });
+
+      function loadDefaultSampleData() {
+        const today = getTodayDateStr();
+        const [curY, curM] = today.split('-');
+        const prevM = String(parseInt(curM) === 1 ? 12 : parseInt(curM) - 1).padStart(2, '0');
+        const prevY = parseInt(curM) === 1 ? parseInt(curY) - 1 : parseInt(curY);
+
+        transactions = [
+          // Current Month - Net Positive Surplus
+          {
+            id: 'demo_1',
+            type: 'credit',
+            amount: 75000,
+            category: 'Salary & Professional Fee',
+            desc: 'Monthly Corporate Salary Inflow',
+            paymentMode: 'Net Banking',
+            date: `${curY}-${curM}-01`,
+            time: '09:30',
+            createdAt: Date.now() - 600000
+          },
+          {
+            id: 'demo_2',
+            type: 'credit',
+            amount: 12500,
+            category: 'Freelance & Business',
+            desc: 'Client Web Design Project Milestone',
+            paymentMode: 'UPI',
+            date: `${curY}-${curM}-04`,
+            time: '18:15',
+            createdAt: Date.now() - 500000
+          },
+          {
+            id: 'demo_3',
+            type: 'debit',
+            amount: 18000,
+            category: 'House Rent & Maintenance',
+            desc: 'Flat Rental Payment',
+            paymentMode: 'Net Banking',
+            date: `${curY}-${curM}-02`,
+            time: '10:00',
+            createdAt: Date.now() - 400000
+          },
+          {
+            id: 'demo_4',
+            type: 'debit',
+            amount: 4500,
+            category: 'Groceries & Provisions',
+            desc: 'Supermarket monthly essentials',
+            paymentMode: 'UPI',
+            date: `${curY}-${curM}-03`,
+            time: '15:20',
+            createdAt: Date.now() - 350000
+          },
+          {
+            id: 'demo_5',
+            type: 'debit',
+            amount: 2200,
+            category: 'Electricity & Utilities',
+            desc: 'Electricity bill & Wi-Fi broadband',
+            paymentMode: 'UPI',
+            date: `${curY}-${curM}-05`,
+            time: '12:45',
+            createdAt: Date.now() - 300000
+          },
+          {
+            id: 'demo_6',
+            type: 'debit',
+            amount: 1850,
+            category: 'Food & Dining Out',
+            desc: 'Weekend Family Dinner at Bistro',
+            paymentMode: 'Credit Card',
+            date: today,
+            time: '13:30',
+            createdAt: Date.now() - 100000
+          },
+          {
+            id: 'demo_7',
+            type: 'debit',
+            amount: 850,
+            category: 'Transport, Petrol & Cab',
+            desc: 'Vehicle Fuel Tank Refill',
+            paymentMode: 'UPI',
+            date: today,
+            time: '09:15',
+            createdAt: Date.now() - 50000
+          },
+          {
+            id: 'demo_8',
+            type: 'credit',
+            amount: 2500,
+            category: 'Investment / Dividends',
+            desc: 'Quarterly Mutual Fund Dividend',
+            paymentMode: 'Net Banking',
+            date: today,
+            time: '11:00',
+            createdAt: Date.now() - 20000
+          },
+
+          // Previous Month - Overspent Deficit Sample
+          {
+            id: 'demo_prev_1',
+            type: 'credit',
+            amount: 45000,
+            category: 'Salary & Professional Fee',
+            desc: 'Consulting Project Advance',
+            paymentMode: 'Net Banking',
+            date: `${prevY}-${prevM}-05`,
+            time: '10:00',
+            createdAt: Date.now() - 2500000
+          },
+          {
+            id: 'demo_prev_2',
+            type: 'debit',
+            amount: 32000,
+            category: 'Shopping & Clothes',
+            desc: 'Festival electronics and clothing',
+            paymentMode: 'Credit Card',
+            date: `${prevY}-${prevM}-10`,
+            time: '16:30',
+            createdAt: Date.now() - 2400000
+          },
+          {
+            id: 'demo_prev_3',
+            type: 'debit',
+            amount: 18000,
+            category: 'House Rent & Maintenance',
+            desc: 'Monthly Rent',
+            paymentMode: 'Net Banking',
+            date: `${prevY}-${prevM}-02`,
+            time: '10:00',
+            createdAt: Date.now() - 2450000
+          },
+          {
+            id: 'demo_prev_4',
+            type: 'debit',
+            amount: 6500,
+            category: 'Health, Medicine & Doctor',
+            desc: 'Dental clinic procedure',
+            paymentMode: 'Debit Card',
+            date: `${prevY}-${prevM}-15`,
+            time: '11:15',
+            createdAt: Date.now() - 2300000
+          }
+        ];
+      }
+
+      // ------------------------------------------------------------------------
+      // Toast Alerts
+      // ------------------------------------------------------------------------
+      function showToast(msg, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        const icons = {
+          success: '✅',
+          error: '⚠️',
+          info: 'ℹ️'
+        };
+        toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${escapeHtml(msg)}</span>`;
+        document.getElementById('toastContainer').appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(10px)';
+          toast.style.transition = 'all 0.3s ease';
+          setTimeout(() => toast.remove(), 300);
+        }, 3200);
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      // ------------------------------------------------------------------------
+      // Initialization
+      // ------------------------------------------------------------------------
+      function init() {
+        loadData();
+        txDate.value = selectedDailyDate;
+        setTxType('debit');
+
+        // Setup Tab Click Listeners
+        navTabButtons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            switchTab(btn.dataset.target);
+          });
+        });
+
+        // Hash Navigation Check
+        const hash = window.location.hash.toLowerCase();
+        if (hash === '#monthly') {
+          switchTab('pageMonthly');
+        } else if (hash === '#annual') {
+          switchTab('pageAnnual');
+        } else if (hash === '#settings') {
+          switchTab('pageSettings');
+        } else {
+          switchTab('pageDaily');
+        }
+      }
+
+      // Run on DOM ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+
+    })();
+  </script>
+</body>
+</html>
