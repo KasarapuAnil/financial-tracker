@@ -1,10 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4F46E5"/>
-      <stop offset="1" stop-color="#7C3AED"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset=".55" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E0E7FF"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#g)"/>
-  <text x="256" y="338" text-anchor="middle" font-family="Segoe UI, Roboto, Arial, sans-serif" font-size="260" font-weight="800" fill="#fff">₹</text>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="430" cy="70" r="190" fill="#FFFFFF" opacity=".07"/>
+  <!-- rising bars -->
+  <rect x="124" y="292" width="68" height="104" rx="20" fill="url(#bar)" opacity=".75"/>
+  <rect x="222" y="232" width="68" height="164" rx="20" fill="url(#bar)" opacity=".88"/>
+  <rect x="320" y="172" width="68" height="224" rx="20" fill="url(#bar)"/>
+  <!-- trend arrow -->
+  <polyline points="120,236 214,166 270,200 380,112" fill="none" stroke="#34D399" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="322,106 384,108 382,170" fill="none" stroke="#34D399" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

@@ -17,7 +17,8 @@
   <meta name="apple-mobile-web-app-title" content="FinTrack">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -75,7 +76,7 @@
     /* ── auth & setup ── */
     .auth { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; padding: calc(32px + var(--safe-top)) 24px calc(32px + var(--safe-bottom)); gap: 24px; }
     .logo { display: flex; align-items: center; gap: 12px; }
-    .logo-mark { width: 52px; height: 52px; border-radius: 16px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); display: grid; place-items: center; color: #fff; font-size: 26px; box-shadow: 0 10px 24px rgba(79, 70, 229, .35); }
+    .logo-mark { width: 52px; height: 52px; border-radius: 14px; display: block; box-shadow: 0 10px 24px rgba(79, 70, 229, .35); }
     .logo h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
     .logo p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
     .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -225,7 +226,7 @@
 
   <!-- Shown until the Supabase project URL is filled in below -->
   <section class="auth" id="setupScreen" hidden>
-    <div class="logo"><div class="logo-mark">₹</div><div><h1>FinTrack</h1><p>One step left</p></div></div>
+    <div class="logo"><img class="logo-mark" src="icons/icon-192.png" alt="" width="52" height="52"><div><h1>FinTrack</h1><p>One step left</p></div></div>
     <div class="card auth-card">
       <b>Add your Supabase project URL</b>
       <p style="margin:0;color:var(--text-2)">Open <code>index.html</code> and set <code>SUPABASE_URL</code> to your project's URL (Supabase → Project Settings → Data API), e.g. <code>https://abcd1234.supabase.co</code>.</p>
@@ -234,7 +235,7 @@
 
   <!-- Sign in / create account -->
   <section class="auth" id="authScreen" hidden>
-    <div class="logo"><div class="logo-mark">₹</div><div><h1>FinTrack</h1><p>Your money, every day — synced and private.</p></div></div>
+    <div class="logo"><img class="logo-mark" src="icons/icon-192.png" alt="" width="52" height="52"><div><h1>FinTrack</h1><p>Your money, every day — synced and private.</p></div></div>
     <form class="card auth-card" id="authForm" novalidate>
       <div class="seg" role="group" aria-label="Sign in or create account">
         <button type="button" id="modeIn" aria-pressed="true">Sign in</button>
@@ -251,7 +252,7 @@
 
   <!-- Choose a new password (after a reset link) -->
   <section class="auth" id="resetScreen" hidden>
-    <div class="logo"><div class="logo-mark">₹</div><div><h1>New password</h1><p>Choose a new password for your account.</p></div></div>
+    <div class="logo"><img class="logo-mark" src="icons/icon-192.png" alt="" width="52" height="52"><div><h1>New password</h1><p>Choose a new password for your account.</p></div></div>
     <form class="card auth-card" id="resetForm" novalidate>
       <div class="field"><label for="newPass">New password</label><input class="input" id="newPass" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required></div>
       <div class="msg" id="resetMsg" hidden></div>
