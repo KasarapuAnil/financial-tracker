@@ -1,0 +1,10 @@
+# Keep secrets and local junk out of this public repo.
+.env
+.env.*
+*.local
+*secret*
+*.pem
+*.key
+node_modules/
+.DS_Store
+Thumbs.db

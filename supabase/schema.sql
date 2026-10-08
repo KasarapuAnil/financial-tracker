@@ -24,7 +24,7 @@ create unique index if not exists transactions_user_legacy_idx on public.transac
 
 -- keep updated_at current on every edit
 create or replace function public.touch_updated_at() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 begin
   new.updated_at := now();
   return new;
@@ -50,6 +50,33 @@ create policy "own rows: remove" on public.transactions for delete to authentica
 
 revoke all on public.transactions from anon;
 grant select, insert, update, delete on public.transactions to authenticated;
+
+-- Limits, so the public key can't be used to fill the database with junk.
+-- The app never comes near them; a script abusing the API hits them at once.
+alter table public.transactions drop constraint if exists transactions_sane;
+alter table public.transactions add constraint transactions_sane check (
+  amount <= 100000000000
+  and char_length(category) between 1 and 60
+  and char_length(description) <= 500
+  and char_length(payment_mode) between 1 and 30
+  and (tx_time is null or tx_time ~ '^[0-2][0-9]:[0-5][0-9]$')
+  and (legacy_id is null or char_length(legacy_id) <= 80)
+  and tx_date between date '1990-01-01' and date '2100-12-31'
+);
+
+-- At most 50,000 entries per account (decades of daily use).
+create or replace function public.limit_rows_per_user() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if (select count(*) from public.transactions where user_id = new.user_id) >= 50000 then
+    raise exception 'Entry limit reached for this account';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists transactions_limit on public.transactions;
+create trigger transactions_limit before insert on public.transactions
+for each row execute function public.limit_rows_per_user();
 
 -- Live sync: changes made on one phone show up on another without a refresh.
 do $$
