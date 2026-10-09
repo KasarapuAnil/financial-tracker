@@ -55,6 +55,11 @@ const state = {
 };
 let sb = null;
 let channel = null;
+// The other sections (loans.js, invest.js, vault.js) plug in here.
+const renderHooks = [];   // run on every render()
+const loadHooks = [];     // async, run after sign-in
+const resetHooks = [];    // run on sign-out
+const fabHooks = {};      // view id → what the ＋ button does there
 
 /* ── small helpers ── */
 const $ = (id) => document.getElementById(id);
@@ -89,7 +94,8 @@ function friendly(err) {
   if (/Email not confirmed/i.test(m)) return "Please confirm your email first — check your inbox.";
   if (/User already registered/i.test(m)) return "An account with this email already exists. Sign in instead.";
   if (/Failed to fetch|NetworkError|network/i.test(m)) return "No connection. Check your internet and try again.";
-  if (/relation .*transactions.* does not exist|Could not find the table/i.test(m)) return "The database isn't set up yet — run supabase/schema.sql in Supabase first.";
+  if (/relation .* does not exist|Could not find the table|schema cache/i.test(m)) return "The database isn't fully set up — run the latest supabase/schema.sql in Supabase.";
+  if (/Entry limit reached/i.test(m)) return "You've reached the maximum number of entries for this section.";
   return m || "Something went wrong. Please try again.";
 }
 function busy(btn, on, label) {
@@ -248,6 +254,7 @@ function skeletons(n) { return Array.from({ length: n }, () => '<div class="skel
 function render() {
   if (!state.user) return;
   renderHero(); renderDay(); renderMonth(); renderYear(); renderSettings();
+  for (const f of renderHooks) f();
 }
 function renderHero() {
   const m = totals(state.tx.filter((t) => t.date.startsWith(todayStr().slice(0, 7))));
@@ -335,17 +342,23 @@ function renderSettings() {
 }
 
 /* ════════════════ navigation ════════════════ */
-const TITLES = { viewHome: "Today", viewMonth: "Monthly", viewYear: "Yearly", viewSettings: "Settings" };
+const TITLES = { viewHome: "Today", viewMonth: "Monthly", viewLoans: "Lend & borrow", viewMore: "More", viewYear: "Yearly", viewInvest: "Investments", viewVault: "Vault", viewSettings: "Settings" };
+// pages opened from More: the More tab stays lit and a back arrow shows
+const PARENT = { viewYear: "viewMore", viewInvest: "viewMore", viewVault: "viewMore", viewSettings: "viewMore" };
 function go(view) {
   state.view = view;
   for (const v of Object.keys(TITLES)) $(v).hidden = v !== view;
-  document.querySelectorAll(".tab").forEach((b) => { if (b.dataset.view === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  const tab = PARENT[view] || view;
+  document.querySelectorAll(".tab").forEach((b) => { if (b.dataset.view === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  $("backBtn").hidden = !PARENT[view];
   $("topTitle").firstChild.nodeValue = TITLES[view];
   $("topSub").textContent = view === "viewHome" ? new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }) : state.user ? state.user.email : "";
   window.scrollTo({ top: 0 });
 }
 document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => go(b.dataset.view)));
 $("avatarBtn").onclick = () => go("viewSettings");
+$("backBtn").onclick = () => go("viewMore");
+document.addEventListener("click", (e) => { const t = e.target.closest("[data-go]"); if (t) go(t.dataset.go); });
 $("dayPrev").onclick = () => { state.day = shiftDate(state.day, -1); renderDay(); };
 $("dayNext").onclick = () => { state.day = shiftDate(state.day, 1); renderDay(); };
 $("dayTitleBtn").onclick = () => { const p = $("dayPicker"); p.value = state.day; p.showPicker ? p.showPicker() : p.click(); };
@@ -401,14 +414,14 @@ function openLayer(el) {
   requestAnimationFrame(() => { scrim.classList.add("on"); el.classList.add("on"); });
 }
 function closeLayers() {
-  for (const id of ["sheet", "confirm", "scrim"]) {
+  for (const id of ["sheet", "panel", "confirm", "scrim"]) {
     const el = $(id); el.classList.remove("on");
     setTimeout(() => { if (!el.classList.contains("on")) el.hidden = true; }, 320);
   }
 }
 $("scrim").onclick = closeLayers;
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLayers(); });
-$("fab").onclick = () => openSheet(null);
+$("fab").onclick = () => (fabHooks[state.view] || (() => openSheet(null)))();
 $("sheet").onsubmit = async (e) => {
   e.preventDefault();
   const amount = parseFloat($("fAmount").value), date = $("fDate").value;
@@ -435,7 +448,7 @@ $("delBtn").onclick = () => {
 /* ── confirm sheet ── */
 let confirmAction = null;
 function confirmAsk(title, text, action, yes) {
-  $("sheet").classList.remove("on"); setTimeout(() => ($("sheet").hidden = !$("sheet").classList.contains("on")), 320);
+  for (const id of ["sheet", "panel"]) { $(id).classList.remove("on"); setTimeout(() => ($(id).hidden = !$(id).classList.contains("on")), 320); }
   $("confirmTitle").textContent = title; $("confirmText").textContent = text; $("confirmYes").textContent = yes || "Delete";
   confirmAction = action;
   openLayer($("confirm"));
@@ -510,6 +523,39 @@ $("wipeBtn").onclick = () => confirmAsk("Delete all your entries?", `All ${state
   state.tx = []; render(); toast("All entries deleted");
 }, "Delete all");
 
+/* ════════════════ shared by the other sections ════════════════ */
+// A bottom sheet whose contents each section fills in (loan form, vault item…).
+function openPanel(html) {
+  const p = $("panel");
+  $("sheet").classList.remove("on"); $("sheet").hidden = true;
+  $("confirm").classList.remove("on"); $("confirm").hidden = true;
+  p.innerHTML = `<div class="grabber"></div>${html}`;
+  p.scrollTop = 0;
+  if (!p.classList.contains("on")) openLayer(p);
+  return p;
+}
+function panelError(p, text) { const el = p.querySelector(".err-text"); if (el) { el.hidden = !text; el.textContent = text || ""; } }
+function num(v) { const n = parseFloat(String(v).replace(/,/g, "")); return Number.isFinite(n) ? n : NaN; }
+function round2(n) { return Math.round(n * 100) / 100; }
+function dateObj(str) { return new Date(str + "T00:00:00"); }
+function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function daysBetween(a, b) { return Math.round((dateObj(b) - dateObj(a)) / 86400000); }
+// same day n months later; the 31st becomes the month's last day when needed
+function addMonths(str, n) {
+  const d = dateObj(str), day = d.getDate();
+  const t = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  t.setDate(Math.min(day, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
+  return dateStr(t);
+}
+function shortDate(str) { return dateObj(str).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }); }
+// "1 yr 3 mo", "4 mo 12 d", "9 d"
+function duration(a, b) {
+  if (b < a) return "0 d";
+  let m = 0; while (addMonths(a, m + 1) <= b) m++;
+  const d = daysBetween(addMonths(a, m), b), y = Math.floor(m / 12), mo = m % 12;
+  return [y && `${y} yr`, mo && `${mo} mo`, (d || !m) && `${d} d`].filter(Boolean).join(" ");
+}
+
 /* ════════════════ start ════════════════ */
 async function enterApp(user) {
   state.user = user;
@@ -518,15 +564,19 @@ async function enterApp(user) {
   state.loaded = false; render();
   try { await loadAll(); } catch (e) { toast(friendly(e), "err"); state.loaded = true; }
   render(); listen();
+  await Promise.all(loadHooks.map((f) => f().catch((e) => toast(friendly(e), "err"))));
+  render();
 }
 function leaveApp() {
   if (channel) { sb.removeChannel(channel); channel = null; }
   Object.assign(state, { user: null, tx: [], loaded: false });
+  for (const f of resetHooks) f();
   closeLayers(); show("authScreen"); setAuthMode("in");
   $("authPass").value = "";
 }
 
-(function start() {
+// starts once every script on the page (loans.js, invest.js, vault.js) has loaded
+window.addEventListener("DOMContentLoaded", function start() {
   if (!window.supabase || /YOUR-PROJECT-REF/.test(SUPABASE_URL)) { show("setupScreen"); return; }
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   let entered = null;
@@ -537,4 +587,4 @@ function leaveApp() {
     else if (!user && entered !== null) { entered = null; leaveApp(); }
     else if (!user && entered === null) { show("authScreen"); }
   });
-})();
+});
