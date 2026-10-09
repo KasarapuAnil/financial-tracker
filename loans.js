@@ -189,11 +189,11 @@ function openLoan(id) {
   };
   p.querySelector("#ldShare").onclick = () => shareText(`Loan — ${l.person}`, [
     `${lent ? "Money lent to" : "Money borrowed from"} ${l.person}`,
-    `Given on ${shortDate(l.start_date)}: ${fmt(l.principal)}${c.added ? ` (+${fmt(c.added)} later)` : ""}`,
+    `Given on ${shortDate(l.start_date)}: ${fmtReal(l.principal)}${c.added ? ` (+${fmtReal(c.added)} later)` : ""}`,
     +l.rate ? `Interest: ${RATE_UNITS[l.rate_unit].short(+l.rate)}, ${l.interest_kind === "compound" ? `compound ${l.compounding}` : "simple"}` : "No interest",
-    `Interest till ${shortDate(c.end)}: ${fmt(c.interest)}`,
-    `Paid back: ${fmt(c.paid)}`,
-    `Balance: ${fmt(Math.max(0, c.balance))}`,
+    `Interest till ${shortDate(c.end)}: ${fmtReal(c.interest)}`,
+    `Paid back: ${fmtReal(c.paid)}`,
+    `Balance: ${fmtReal(Math.max(0, c.balance))}`,
   ].join("\n"));
   p.querySelector("#ldDel").onclick = () => confirmAsk(`Delete the loan with ${l.person}?`, "The loan and all its payments will be removed.", async () => {
     const { error } = await sb.from("loans").delete().eq("id", l.id);

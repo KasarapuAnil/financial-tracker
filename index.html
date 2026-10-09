@@ -62,7 +62,8 @@
     .stat b { font-size: clamp(13px, 4vw, 16px); }
     .topbar h2 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .topbar small { overflow: hidden; text-overflow: ellipsis; }
-    .avatar { flex: none; }
+    .avatar, .eye { flex: none; }
+    .eye { font-size: 18px; }
     body { background: var(--bg); color: var(--text); font: 500 15px/1.45 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
     button, input, select { font: inherit; color: inherit; }
     button { cursor: pointer; }
@@ -341,6 +342,7 @@
     <header class="topbar">
       <button class="round" id="backBtn" aria-label="Back" hidden>‹</button>
       <h2 id="topTitle">Today<small id="topSub">—</small></h2>
+      <button class="round eye" id="eyeBtn" aria-label="Show amounts" aria-pressed="false">🙈</button>
       <button class="avatar" id="avatarBtn" aria-label="Settings"></button>
     </header>
 

@@ -38,6 +38,7 @@ const CREDIT_CATEGORIES = [
 ];
 const OLD_STORAGE_KEY = "fintrack_personal_expenses_v1"; // the browser-only version's data
 const THEME_KEY = "fintrack_theme";
+const HIDE_KEY = "fintrack_hide_amounts"; // "0" once the person chose to show them
 const IMPORTED_KEY = "fintrack_imported_to"; // which account the device entries went to
 
 /* ── state ── */
@@ -51,6 +52,7 @@ const state = {
   year: new Date().getFullYear(),
   filter: "all",
   view: "viewHome",
+  hideAmounts: (() => { try { return localStorage.getItem(HIDE_KEY) !== "0"; } catch (e) { return true; } })(),
   sheet: { editId: null, type: "debit", category: null },
 };
 let sb = null;
@@ -66,7 +68,10 @@ const $ = (id) => document.getElementById(id);
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function shiftDate(str, days) { const d = new Date(str + "T00:00:00"); d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function shiftMonth(str, n) { const [y, m] = str.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
-function fmt(n) { const v = Math.abs(Number(n) || 0); const s = v.toLocaleString("en-IN", { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }); return `${state.currency}${s}`; }
+// Amounts on screen are masked until the eye in the top bar is tapped;
+// fmtReal is for what leaves the screen on purpose (share, export).
+function fmtReal(n) { const v = Math.abs(Number(n) || 0); const s = v.toLocaleString("en-IN", { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }); return `${state.currency}${s}`; }
+function fmt(n) { return state.hideAmounts ? `${state.currency} ••••` : fmtReal(n); }
 function signed(n) { return (n < 0 ? "−" : "") + fmt(n); }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 function dayLabel(str) {
@@ -357,6 +362,22 @@ function go(view) {
 }
 document.querySelectorAll(".tab").forEach((b) => (b.onclick = () => go(b.dataset.view)));
 $("avatarBtn").onclick = () => go("viewSettings");
+function setHidden(on) {
+  state.hideAmounts = on;
+  try { localStorage.setItem(HIDE_KEY, on ? "1" : "0"); } catch (e) {}
+  const b = $("eyeBtn"); b.textContent = on ? "🙈" : "👁"; b.setAttribute("aria-pressed", String(!on));
+  b.setAttribute("aria-label", on ? "Show amounts" : "Hide amounts");
+  if ($("panel").classList.contains("on")) closeLayers();
+  render();
+}
+$("eyeBtn").onclick = () => setHidden(!state.hideAmounts);
+setHidden(state.hideAmounts);
+// hide again whenever the app has been in the background for a minute
+let hiddenSince = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) hiddenSince = Date.now();
+  else if (!state.hideAmounts && Date.now() - hiddenSince > 60000) setHidden(true);
+});
 $("backBtn").onclick = () => go("viewMore");
 document.addEventListener("click", (e) => { const t = e.target.closest("[data-go]"); if (t) go(t.dataset.go); });
 $("dayPrev").onclick = () => { state.day = shiftDate(state.day, -1); renderDay(); };
