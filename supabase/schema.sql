@@ -236,3 +236,125 @@ create policy "vault: change own files" on storage.objects for update to authent
   using (bucket_id = 'vault' and (storage.foldername(name))[1] = (select auth.uid()::text));
 create policy "vault: remove own files" on storage.objects for delete to authenticated
   using (bucket_id = 'vault' and (storage.foldername(name))[1] = (select auth.uid()::text));
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Farm — crop cycles and what each one cost
+--
+-- A CYCLE is one crop, on one field, in one season of one year: "Paddy, 2
+-- Acres, Rabi 2026". That is the unit the farm is actually run in, and the
+-- unit the paper register has always been kept in.
+--
+-- INCOME IS NOT STORED. It is worked out from the harvest, exactly the way the
+-- register does it:
+--
+--     quintals = (bags x kg_per_bag + cuttings_kg) / 100
+--     income   = quintals x rate_per_qtl + other_income
+--
+-- Storing the total as well would be a second copy of a number that is already
+-- determined by four others, and the first edit to a rate would leave the two
+-- disagreeing with nothing to say which is right. The app computes it on the
+-- way out. `other_income` is for the odds and ends the register has no column
+-- for -- straw sold off the field, usually.
+-- ═══════════════════════════════════════════════════════════════════════════
+create table if not exists public.crop_cycles (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  year         int  not null,
+  season       text not null default 'kharif' check (season in ('kharif', 'rabi', 'summer', 'other')),
+  field        text not null,              -- "20 Gunta", "2 Acres"
+  crop         text not null default 'Paddy',
+  sow_date     date,
+  cut_date     date,
+  -- the harvest, as the register records it
+  bags         numeric(10, 2) not null default 0 check (bags >= 0),
+  kg_per_bag   numeric(8, 2)  not null default 40 check (kg_per_bag >= 0),
+  cuttings_kg  numeric(10, 2) not null default 0 check (cuttings_kg >= 0),
+  rate_per_qtl numeric(12, 2) not null default 0 check (rate_per_qtl >= 0),
+  other_income numeric(14, 2) not null default 0 check (other_income >= 0),
+  note         text not null default '',
+  -- so the same row pasted from the old sheet twice does not land twice
+  legacy_id    text,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index if not exists crop_cycles_user_idx on public.crop_cycles (user_id, year desc);
+-- NOT a partial index, and that is load-bearing.
+--
+-- The obvious "where legacy_id is not null" makes this a PARTIAL index, and
+-- ON CONFLICT cannot infer a partial index unless the statement repeats the
+-- same predicate -- which PostgREST's on_conflict has no way to send. The
+-- upsert that stops a re-pasted sheet from doubling the year then fails with
+-- "no unique or exclusion constraint matching the ON CONFLICT specification".
+--
+-- The predicate buys nothing here: Postgres treats NULLs as distinct in a
+-- unique index, so rows typed in by hand (no legacy_id) never collide with
+-- each other.
+drop index if exists public.crop_cycles_legacy_idx;
+create unique index if not exists crop_cycles_legacy_idx on public.crop_cycles (user_id, legacy_id);
+
+create table if not exists public.crop_expenses (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  cycle_id   uuid not null references public.crop_cycles (id) on delete cascade,
+  category   text not null,
+  amount     numeric(14, 2) not null check (amount > 0),
+  spent_on   date not null,
+  note       text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists crop_expenses_cycle_idx on public.crop_expenses (cycle_id);
+
+alter table public.crop_cycles drop constraint if exists crop_cycles_sane;
+alter table public.crop_cycles add constraint crop_cycles_sane check (
+  year between 1990 and 2100
+  and char_length(field) between 1 and 60
+  and char_length(crop) between 1 and 40
+  and char_length(note) <= 500
+  and bags <= 1000000 and kg_per_bag <= 1000 and cuttings_kg <= 10000000
+  and rate_per_qtl <= 10000000 and other_income <= 100000000000
+  and (legacy_id is null or char_length(legacy_id) <= 80)
+);
+
+alter table public.crop_expenses drop constraint if exists crop_expenses_sane;
+alter table public.crop_expenses add constraint crop_expenses_sane check (
+  amount <= 100000000000
+  and char_length(category) between 1 and 40
+  and char_length(note) <= 300
+  and spent_on between date '1990-01-01' and date '2100-12-31'
+);
+
+-- Same treatment as every other table: own rows only, updated_at kept current.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['crop_cycles', 'crop_expenses'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "own rows: read" on public.%I', t);
+    execute format('drop policy if exists "own rows: add" on public.%I', t);
+    execute format('drop policy if exists "own rows: change" on public.%I', t);
+    execute format('drop policy if exists "own rows: remove" on public.%I', t);
+    execute format('create policy "own rows: read" on public.%I for select to authenticated using (auth.uid() = user_id)', t);
+    execute format('create policy "own rows: add" on public.%I for insert to authenticated with check (auth.uid() = user_id)', t);
+    execute format('create policy "own rows: change" on public.%I for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id)', t);
+    execute format('create policy "own rows: remove" on public.%I for delete to authenticated using (auth.uid() = user_id)', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+  end loop;
+end $$;
+
+drop trigger if exists crop_cycles_touch on public.crop_cycles;
+create trigger crop_cycles_touch before update on public.crop_cycles
+for each row execute function public.touch_updated_at();
+
+-- An expense can only be added to one of your own cycles.
+drop policy if exists "own rows: add" on public.crop_expenses;
+create policy "own rows: add" on public.crop_expenses for insert to authenticated
+  with check (auth.uid() = user_id and exists (select 1 from public.crop_cycles c where c.id = cycle_id and c.user_id = auth.uid()));
+
+drop trigger if exists crop_cycles_limit on public.crop_cycles;
+create trigger crop_cycles_limit before insert on public.crop_cycles
+for each row execute function public.limit_rows_per_user('2000');
+drop trigger if exists crop_expenses_limit on public.crop_expenses;
+create trigger crop_expenses_limit before insert on public.crop_expenses
+for each row execute function public.limit_rows_per_user('50000');

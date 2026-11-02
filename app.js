@@ -347,9 +347,9 @@ function renderSettings() {
 }
 
 /* ════════════════ navigation ════════════════ */
-const TITLES = { viewHome: "Today", viewMonth: "Monthly", viewLoans: "Lend & borrow", viewMore: "More", viewYear: "Yearly", viewInvest: "Investments", viewVault: "Vault", viewSettings: "Settings" };
+const TITLES = { viewHome: "Today", viewMonth: "Monthly", viewLoans: "Lend & borrow", viewMore: "More", viewYear: "Yearly", viewInvest: "Investments", viewVault: "Vault", viewSettings: "Settings", viewFarm: "Farm" };
 // pages opened from More: the More tab stays lit and a back arrow shows
-const PARENT = { viewYear: "viewMore", viewInvest: "viewMore", viewVault: "viewMore", viewSettings: "viewMore" };
+const PARENT = { viewYear: "viewMore", viewInvest: "viewMore", viewVault: "viewMore", viewSettings: "viewMore", viewFarm: "viewMore" };
 function go(view) {
   state.view = view;
   for (const v of Object.keys(TITLES)) $(v).hidden = v !== view;
