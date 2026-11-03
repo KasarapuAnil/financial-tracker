@@ -374,6 +374,11 @@
     .ptr.spin { color: var(--brand); }
     .ptr.spin svg { animation: ptrSpin .8s linear infinite; }
     @keyframes ptrSpin { to { transform: rotate(360deg); } }
+    .fm-quick { display: flex; gap: 6px; overflow-x: auto; margin: -2px 0 12px; padding-bottom: 2px; scrollbar-width: none; }
+    .fm-quick .chip-btn { flex: none; }
+    #cfBagRow.one { grid-template-columns: minmax(0, 1fr); }
+    .fm-calc { display: inline-block; padding: 8px 12px; border-radius: 12px; background: var(--credit-bg); color: var(--text); font-weight: 600; }
+    .fm-calc b { color: var(--credit); }
   </style>
 </head>
 <body>

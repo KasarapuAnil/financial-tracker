@@ -233,12 +233,12 @@ function openCycle(c) {
            register has always had written in the margin, and seeing it is how
            a wrong bag count gets spotted. -->
       <div class="fine" style="line-height:1.8">
-        ${(+c.bags || 0)} bags × ${(+c.kg_per_bag || 0)} kg${(+c.cuttings_kg || 0) ? ` + ${(+c.cuttings_kg)} kg cuttings` : ""}
-        = <b>${qtl.toFixed(2)} qtl</b><br>
+        ${soldByOf(c) === "bags" ? `${(+c.bags || 0)} bags × ${(+c.kg_per_bag || 0)} kg${(+c.cuttings_kg || 0) ? ` + ${(+c.cuttings_kg)} kg cuttings` : ""}
+        = <b>${qtl.toFixed(2)} qtl</b><br>` : soldByOf(c) === "kg" ? `${(+c.bags || 0)} kg = <b>${qtl.toFixed(2)} qtl</b><br>` : ""}
         ${qtl.toFixed(2)} × ${fmtReal(+c.rate_per_qtl || 0)}/qtl = <b>${fmtReal(qtl * (+c.rate_per_qtl || 0))}</b>
         ${(+c.other_income || 0) ? `<br>+ ${fmtReal(+c.other_income)} other` : ""}
       </div>
-    </div>` : `<p class="fine" style="margin-bottom:14px">Not harvested yet — add the bags and rate when it is cut.</p>`}
+    </div>` : `<p class="fine" style="margin-bottom:14px">Not harvested yet — add the quantity and rate when it is cut.</p>`}
 
     ${cats.length ? `<div class="card box" style="margin-bottom:12px">${
       cats.map(([k, v]) => `<div class="item-top" style="padding:7px 0">
@@ -308,14 +308,29 @@ function openCycle(c) {
 }
 
 /* ── add / edit a cycle ── */
+/* How a crop's harvest is counted. All three fit the same columns:
+   bags × kg_per_bag + cuttings_kg = total kg, so "quintals" is stored as
+   bags = quintals with 100 kg each, and "kg" as bags = kg with 1 kg each. */
+const SOLD_BY = { bags: "Bags", qtl: "Quintals", kg: "Kg" };
+const QTL_CROPS = /cotton|chill?i|mirchi|turmeric|maize|corn|groundnut|soya|red ?gram|tur|bengal ?gram|jowar|sugar ?cane/i;
+const QUICK_CROPS = ["Paddy", "Cotton", "Maize", "Chilli", "Groundnut", "Red gram"];
+function soldByOf(c) {
+  if (!c) return "bags";
+  if (+c.kg_per_bag === 100 && !(+c.cuttings_kg)) return "qtl";
+  if (+c.kg_per_bag === 1 && !(+c.cuttings_kg)) return "kg";
+  return "bags";
+}
+
 function openCycleForm(c) {
   const thisYear = new Date().getFullYear();
   const p = openPanel(`
     <h3>${c ? "Edit crop" : "New crop"}</h3>
     <div class="form-grid">
-      <div class="field"><label for="cfCrop">Crop</label><input class="input" id="cfCrop" maxlength="40" placeholder="Paddy" value="${c ? esc(c.crop) : "Paddy"}"></div>
+      <div class="field"><label for="cfCrop">Crop</label><input class="input" id="cfCrop" maxlength="40" placeholder="Paddy" value="${c ? esc(c.crop) : "Paddy"}" list="cfCrops"></div>
       <div class="field"><label for="cfField">Field</label><input class="input" id="cfField" maxlength="60" placeholder="2 Acres" value="${c ? esc(c.field) : ""}" list="cfFields"></div>
     </div>
+    <div class="fm-quick" id="cfQuick">${QUICK_CROPS.map((n) => `<button type="button" class="chip-btn" data-crop="${esc(n)}">${cropIcon(n)} ${esc(n)}</button>`).join("")}</div>
+    <datalist id="cfCrops">${[...new Set([...QUICK_CROPS, ...state.cycles.map((x) => x.crop)])].map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
     <datalist id="cfFields">${[...new Set(state.cycles.map((x) => x.field))].map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
     <div class="field"><label>Season</label>${segHTML("season", SEASONS, c ? c.season : "kharif")}</div>
     <div class="form-grid">
@@ -327,13 +342,16 @@ function openCycleForm(c) {
     <!-- The harvest. Left empty while the crop is still standing; the detail
          screen says "not harvested yet" rather than showing a ₹0 income. -->
     <p class="fine" style="margin:14px 0 8px">Harvest — fill this in when it is cut</p>
-    <div class="form-grid">
-      <div class="field"><label for="cfBags">Bags</label><input class="input" id="cfBags" type="number" inputmode="decimal" min="0" step="0.01" value="${c && +c.bags ? +c.bags : ""}"></div>
-      <div class="field"><label for="cfKg">Kg per bag</label><input class="input" id="cfKg" type="number" inputmode="decimal" min="0" step="0.01" value="${c ? +c.kg_per_bag : 40}"></div>
+    <div class="field"><label>Sold by</label>
+      <div class="seg" id="cfSold" role="group" aria-label="Sold by">${Object.entries(SOLD_BY).map(([k, v]) => `<button type="button" data-sold="${k}" aria-pressed="false">${v}</button>`).join("")}</div>
+    </div>
+    <div class="form-grid" id="cfBagRow">
+      <div class="field"><label for="cfBags" id="cfBagsLbl">Bags</label><input class="input" id="cfBags" type="number" inputmode="decimal" min="0" step="0.01" value="${c && +c.bags ? +c.bags : ""}"></div>
+      <div class="field" id="cfKgWrap"><label for="cfKg">Kg per bag</label><input class="input" id="cfKg" type="number" inputmode="decimal" min="0" step="0.01" value="${c && soldByOf(c) === "bags" ? +c.kg_per_bag : 40}"></div>
     </div>
     <div class="form-grid">
-      <div class="field"><label for="cfCut2">Cuttings (kg)</label><input class="input" id="cfCut2" type="number" inputmode="decimal" min="0" step="0.01" value="${c && +c.cuttings_kg ? +c.cuttings_kg : ""}"></div>
-      <div class="field"><label for="cfRate">Rate per quintal</label><input class="input" id="cfRate" type="number" inputmode="decimal" min="0" step="0.01" value="${c && +c.rate_per_qtl ? +c.rate_per_qtl : ""}"></div>
+      <div class="field" id="cfCutWrap"><label for="cfCut2">Cuttings (kg)</label><input class="input" id="cfCut2" type="number" inputmode="decimal" min="0" step="0.01" value="${c && +c.cuttings_kg ? +c.cuttings_kg : ""}"></div>
+      <div class="field"><label for="cfRate">Rate per quintal (₹)</label><input class="input" id="cfRate" type="number" inputmode="decimal" min="0" step="0.01" value="${c && +c.rate_per_qtl ? +c.rate_per_qtl : ""}"></div>
     </div>
     <div class="field"><label for="cfOther">Anything else sold (₹)</label><input class="input" id="cfOther" type="number" inputmode="decimal" min="0" step="0.01" placeholder="straw, etc." value="${c && +c.other_income ? +c.other_income : ""}"></div>
     <!-- The total, live, so a mistyped bag count is obvious before it is saved
@@ -344,19 +362,45 @@ function openCycleForm(c) {
     <div class="sheet-actions"><button class="btn btn-ghost" id="cfCancel">Cancel</button><button class="btn btn-primary" id="cfSave">Save</button></div>
   `);
 
-  const preview = () => {
-    const draft = {
-      bags: p.querySelector("#cfBags").value, kg_per_bag: p.querySelector("#cfKg").value,
-      cuttings_kg: p.querySelector("#cfCut2").value, rate_per_qtl: p.querySelector("#cfRate").value,
+  let sold = soldByOf(c);
+  if (!c && QTL_CROPS.test(p.querySelector("#cfCrop").value)) sold = "qtl";
+  const draftOf = () => {
+    const amt = p.querySelector("#cfBags").value;
+    return {
+      bags: amt,
+      kg_per_bag: sold === "qtl" ? 100 : sold === "kg" ? 1 : p.querySelector("#cfKg").value,
+      cuttings_kg: sold === "bags" ? p.querySelector("#cfCut2").value : 0,
+      rate_per_qtl: p.querySelector("#cfRate").value,
       other_income: p.querySelector("#cfOther").value,
     };
-    const q = cycleQtl(draft);
-    p.querySelector("#cfPreview").textContent = q > 0 || +draft.other_income
-      ? `= ${q.toFixed(2)} qtl · ${fmtReal(cycleIncome(draft))}`
+  };
+  const setSold = (k) => {
+    sold = k;
+    p.querySelectorAll("[data-sold]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.sold === k));
+    p.querySelector("#cfBagsLbl").textContent = k === "qtl" ? "Quintals" : k === "kg" ? "Total kg" : "Bags";
+    p.querySelector("#cfKgWrap").hidden = k !== "bags";
+    p.querySelector("#cfCutWrap").hidden = k !== "bags";
+    p.querySelector("#cfBagRow").classList.toggle("one", k !== "bags");
+    preview();
+  };
+  const preview = () => {
+    const draft = draftOf(), q = cycleQtl(draft);
+    p.querySelector("#cfPreview").innerHTML = q > 0 || +draft.other_income
+      ? `<span class="fm-calc"><b>${q.toFixed(2)} qtl</b>${+draft.rate_per_qtl ? ` × ${fmtReal(+draft.rate_per_qtl)}` : ""}${+draft.other_income ? ` + ${fmtReal(+draft.other_income)}` : ""} = <b>${fmtReal(cycleIncome(draft))}</b></span>`
       : "";
   };
+  p.querySelector("#cfSold").onclick = (e) => { const b = e.target.closest("[data-sold]"); if (b) setSold(b.dataset.sold); };
+  p.querySelector("#cfQuick").onclick = (e) => {
+    const b = e.target.closest("[data-crop]"); if (!b) return;
+    p.querySelector("#cfCrop").value = b.dataset.crop;
+    setSold(QTL_CROPS.test(b.dataset.crop) ? "qtl" : "bags");
+  };
+  // typing "cotton" switches to quintals, once, until you pick a mode yourself
+  let picked = !!c;
+  p.querySelector("#cfSold").addEventListener("click", () => (picked = true));
+  p.querySelector("#cfCrop").oninput = () => { if (!picked) setSold(QTL_CROPS.test(p.querySelector("#cfCrop").value) ? "qtl" : "bags"); };
   ["#cfBags", "#cfKg", "#cfCut2", "#cfRate", "#cfOther"].forEach((s) => (p.querySelector(s).oninput = preview));
-  preview();
+  setSold(sold);
 
   p.querySelector("#cfCancel").onclick = closeLayers;
   p.querySelector("#cfSave").onclick = async () => {
@@ -368,9 +412,9 @@ function openCycleForm(c) {
       year: parseInt(p.querySelector("#cfYear").value, 10),
       sow_date: p.querySelector("#cfSow").value || null,
       cut_date: p.querySelector("#cfCut").value || null,
-      bags: round2(+p.querySelector("#cfBags").value || 0),
-      kg_per_bag: round2(+p.querySelector("#cfKg").value || 0),
-      cuttings_kg: round2(+p.querySelector("#cfCut2").value || 0),
+      bags: round2(+draftOf().bags || 0),
+      kg_per_bag: round2(+draftOf().kg_per_bag || 0),
+      cuttings_kg: round2(+draftOf().cuttings_kg || 0),
       rate_per_qtl: round2(+p.querySelector("#cfRate").value || 0),
       other_income: round2(+p.querySelector("#cfOther").value || 0),
       note: p.querySelector("#cfNote").value.trim(),
