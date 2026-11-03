@@ -194,7 +194,9 @@
     .scrim.on { opacity: 1; }
     .sheet { position: fixed; left: 50%; bottom: 0; width: min(520px, 100%); z-index: 41; transform: translate(-50%, 104%); transition: transform .32s cubic-bezier(.2, .8, .2, 1); background: var(--surface); border-radius: 26px 26px 0 0; padding: 10px 18px calc(18px + var(--safe-bottom)); max-height: 92vh; max-height: 92dvh; overflow-y: auto; box-shadow: 0 -20px 50px rgba(0, 0, 0, .25); }
     .sheet.on { transform: translate(-50%, 0); }
-    .grabber { width: 44px; height: 5px; border-radius: 9px; background: var(--line); margin: 0 auto 12px; }
+    .grabber:active { cursor: grabbing; }
+    .grabber { width: 44px; height: 5px; border-radius: 9px; background: var(--muted); opacity: .45; margin: 0 auto 12px; position: relative; touch-action: none; cursor: grab; }
+    .grabber::before { content: ""; position: absolute; inset: -14px -40px; } /* bigger area to grab */
     .sheet h3 { margin: 0 0 14px; font-size: 19px; }
     .type-seg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 14px; }
     .type-seg button { border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 14px; padding: 12px; font-weight: 800; }
@@ -296,6 +298,74 @@
     .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: rot .7s linear infinite; }
     @keyframes rot { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+    .hero .carry { position: relative; z-index: 1; margin-top: 12px; font-size: 12px; font-weight: 700; opacity: .85; }
+    .cb-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; color: var(--text-2); font-weight: 600; }
+    .cb-row b { color: var(--text); }
+    .cb-total { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 12px; font-size: 17px; color: var(--text); }
+    .cb-flow { display: flex; gap: 3px; height: 10px; border-radius: 99px; overflow: hidden; margin: 8px 0 4px; background: var(--surface-2); }
+    .cb-flow i { min-width: 0; }
+    .hint { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 6px; }
+    .donut { position: relative; width: 180px; margin: 4px auto 14px; }
+    .donut:empty { display: none; }
+    .donut svg { display: block; width: 100%; }
+    .donut svg circle { transition: stroke-dasharray .6s ease; }
+    .donut-mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+    .donut-mid b { font-size: 18px; } .donut-mid small { font-size: 11px; color: var(--muted); font-weight: 700; }
+    .cat-d { border-radius: 14px; transition: background .2s; }
+    .cat-d[open] { background: var(--surface-2); }
+    .cat-d summary { list-style: none; cursor: pointer; } .cat-d summary::-webkit-details-marker { display: none; }
+    .cat-more { padding: 0 10px 10px; animation: catIn .25s ease; }
+    .cat-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+    .cat-kpis span { background: var(--surface); border-radius: 12px; padding: 8px 10px; font-size: 11px; color: var(--muted); font-weight: 700; }
+    .cat-kpis b { display: block; font-size: 14px; color: var(--text); margin-top: 2px; }
+    @keyframes catIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    .farm-hero { background: radial-gradient(120% 120% at 100% 0%, #34D399 0%, #059669 45%, #064E3B 100%); box-shadow: 0 16px 36px rgba(5, 150, 105, .35); }
+    .farm-hero .split { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .fm-pill { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .2); font-size: 11px; }
+    .fm-pill.bad { background: rgba(248, 113, 113, .45); }
+    .fm-pill:empty { display: none; }
+    .fm-cover { position: relative; z-index: 1; height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .2); margin-top: 14px; overflow: hidden; }
+    .fm-cover i { display: block; height: 100%; background: #fff; border-radius: 99px; transition: width .6s ease; }
+    .fm-crop { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .fm-crop:last-of-type { border-bottom: 0; }
+    .fm-ico { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: var(--credit-bg); }
+    .fm-crop-mid { flex: 1; min-width: 0; }
+    .fm-row { display: flex; justify-content: space-between; gap: 8px; }
+    .fm-sub { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+    .fm-bars { display: grid; gap: 3px; margin-top: 6px; }
+    .fm-bars i { display: block; height: 6px; border-radius: 99px; min-width: 2px; transition: width .6s ease; }
+    .fm-bars .in { background: var(--credit); } .fm-bars .out { background: var(--debit); opacity: .8; }
+    .fm-cycle { border-left: 4px solid var(--line); }
+    .fm-cycle.is-win { border-left-color: var(--credit); } .fm-cycle.is-loss { border-left-color: var(--debit); } .fm-cycle.is-growing { border-left-color: #F59E0B; }
+    .fm-cycle.is-growing .fm-ico { background: rgba(245, 158, 11, .15); }
+    .fm-track { height: 5px; border-radius: 99px; background: var(--credit-bg); overflow: hidden; }
+    .fm-track i { display: block; height: 100%; background: var(--debit); opacity: .75; }
+    .acc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .acc > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .15s; }
+    .acc > summary::-webkit-details-marker { display: none; }
+    .acc > summary:hover { background: var(--surface-2); }
+    .acc > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+    .acc-ico { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; background: var(--surface-2); }
+    .acc-t { flex: 1; min-width: 0; display: grid; gap: 2px; }
+    .acc-t b { font-size: 15px; font-weight: 800; color: var(--text); }
+    .acc-n { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .acc-chev { flex: none; width: 20px; height: 20px; color: var(--muted); transition: transform .25s ease, color .2s; }
+    .acc[open] .acc-chev { transform: rotate(180deg); color: var(--brand); }
+    .acc[open] > summary { border-bottom: 1px solid var(--line); }
+    /* the list inside sits flush in the accordion card instead of a card in a card */
+    .acc > [data-acc-title] { margin: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+    .acc > .stack[data-acc-title] { padding: 12px; }
+    .acc[open] > [data-acc-title] { animation: catIn .25s ease; }
+    .fm-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 6px 0 4px; }
+    .fm-opt { position: relative; display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text-2); font-weight: 700; font-size: 12px; line-height: 1.15; text-align: center; cursor: pointer; transition: border-color .15s, background .15s, transform .1s, box-shadow .15s; -webkit-tap-highlight-color: transparent; }
+    .fm-opt:hover { border-color: color-mix(in srgb, var(--credit) 45%, var(--line)); }
+    .fm-opt:active { transform: scale(.96); }
+    .fm-opt:focus-visible { outline: 2px solid var(--credit); outline-offset: 2px; }
+    .fm-opt-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: var(--surface-2); transition: background .15s; }
+    .fm-opt-tick { position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; color: #fff; background: var(--credit); opacity: 0; transform: scale(.5); transition: opacity .15s, transform .15s; }
+    .fm-opt.on { border-color: var(--credit); background: var(--credit-bg); color: var(--text); box-shadow: 0 6px 16px color-mix(in srgb, var(--credit) 25%, transparent); }
+    .fm-opt.on .fm-opt-ico { background: var(--surface); }
+    .fm-opt.on .fm-opt-tick { opacity: 1; transform: none; }
   </style>
 </head>
 <body>
@@ -355,6 +425,7 @@
           <div class="chip"><span>⬇ Income</span><b class="num" id="heroIn">—</b></div>
           <div class="chip"><span>⬆ Spent</span><b class="num" id="heroOut">—</b></div>
         </div>
+        <div class="carry" id="heroCarry"></div>
       </div>
       <div class="card pager">
         <button class="round" id="dayPrev" aria-label="Previous day">‹</button>
@@ -372,7 +443,7 @@
         <button class="chip-btn" data-filter="debit" aria-pressed="false">Spent</button>
         <button class="chip-btn" data-filter="credit" aria-pressed="false">Income</button>
       </div>
-      <div class="card list" id="dayList"></div>
+      <div class="card list" id="dayList" data-acc-title="🧾 Entries" data-acc-noun="entry"></div>
     </main>
 
     <!-- Month -->
@@ -387,18 +458,27 @@
         <div class="card stat"><span>Spent</span><b class="num debit" id="mOut">—</b></div>
         <div class="card stat"><span>Net</span><b class="num" id="mNet">—</b></div>
       </div>
+      <div class="card chart-card cashbal">
+        <h3>Cash balance</h3>
+        <div class="cb-row"><span id="cbPrevLbl">Carried from last month</span><b class="num" id="cbOpen">—</b></div>
+        <div class="cb-row"><span>⬇ Income</span><b class="num credit" id="cbIn">—</b></div>
+        <div class="cb-row"><span>⬆ Spent</span><b class="num debit" id="cbOut">—</b></div>
+        <div class="cb-flow" id="cbFlow"></div>
+        <div class="cb-row cb-total"><span>Closing balance</span><b class="num" id="cbClose">—</b></div>
+      </div>
       <div class="card chart-card">
         <h3>Daily cash flow</h3>
         <svg class="chart" id="monChart" role="img" aria-label="Income and spending for each day of the month"></svg>
         <div class="legend"><span><i style="background:var(--credit)"></i>Income</span><span><i style="background:var(--debit)"></i>Spent</span></div>
       </div>
       <div class="card chart-card">
-        <h3>Where it went</h3>
+        <h3>Where it went <small class="hint">tap a category for details</small></h3>
+        <div class="donut" id="monDonut"></div>
         <div id="monCats"></div>
       </div>
       <div class="section-head"><h3>All entries</h3><button class="link" id="exportMonth">Export CSV</button></div>
       <div class="search"><input class="input" id="monSearch" type="search" placeholder="Search description, category, payment…" aria-label="Search this month"></div>
-      <div class="card list" id="monList"></div>
+      <div class="card list" id="monList" data-acc-title="📋 Entry list" data-acc-noun="entry"></div>
     </main>
 
     <!-- Year -->
@@ -418,7 +498,7 @@
         <svg class="chart" id="yrChart" role="img" aria-label="Income and spending for each month"></svg>
         <div class="legend"><span><i style="background:var(--credit)"></i>Income</span><span><i style="background:var(--debit)"></i>Spent</span></div>
       </div>
-      <div class="card chart-card"><h3>Months</h3><div id="yrRows"></div></div>
+      <div class="card chart-card" id="yrRows" data-acc-title="📅 Months" data-acc-noun="month"></div>
     </main>
 
     <!-- Settings -->
@@ -457,11 +537,8 @@
       </div>
       <div id="loanDirSeg"><div class="seg" data-seg="loanDir" role="group" aria-label="Show"><button type="button" data-v="all" aria-pressed="true">All</button><button type="button" data-v="lent" aria-pressed="false">I lent</button><button type="button" data-v="borrowed" aria-pressed="false">I borrowed</button></div></div>
       <div id="loanStatusSeg"><div class="seg" data-seg="loanStatus" role="group" aria-label="Status"><button type="button" data-v="active" aria-pressed="true">Open</button><button type="button" data-v="closed" aria-pressed="false">Settled</button></div></div>
-      <div class="stack" id="loanList"></div>
-      <div class="card chart-card">
-        <h3>🧮 Interest calculator</h3>
-        <div id="calcBox"></div>
-      </div>
+      <div class="stack" id="loanList" data-acc-title="🤝 Loans" data-acc-noun="loan"></div>
+      <div class="card box" id="calcWrap" data-acc-title="🧮 Interest calculator" data-acc-sub="Work out interest on any amount"><div id="calcBox"></div></div>
     </main>
 
     <!-- More: net worth and everything else -->
@@ -470,7 +547,7 @@
         <div class="label">Net worth · estimate</div>
         <div class="big num" id="nwNet">—</div>
       </div>
-      <div class="card list" id="nwRows"></div>
+      <div class="card list" id="nwRows" data-acc-title="💼 Breakdown" data-acc-noun="row"></div>
       <div class="tiles">
         <button class="card tile" data-go="viewInvest"><span class="ti2">📈</span><b>Investments</b><small id="tileInvSub">SIP, FD, gold…</small></button>
         <button class="card tile" data-go="viewVault"><span class="ti2">🔐</span><b>Vault</b><small id="tileVaultSub">Passwords & files</small></button>
@@ -500,7 +577,7 @@
         <svg class="chart" id="iChart" role="img" aria-label="Projected value of your investments over the years"></svg>
         <div class="legend"><span><i style="background:var(--brand)"></i>Value</span><span><i style="background:var(--muted)"></i>Money put in</span></div>
       </div>
-      <div class="stack" id="invList"></div>
+      <div class="stack" id="invList" data-acc-title="📈 Your investments" data-acc-noun="investment"></div>
       <p class="fine">Estimates use the expected return you enter. Real returns go up and down.</p>
     </main>
 
@@ -515,7 +592,7 @@
         <div class="chips mt mb" role="group" aria-label="Show">
           <button class="chip-btn" data-vfilter="all">All</button><button class="chip-btn" data-vfilter="login">🔑 Logins</button><button class="chip-btn" data-vfilter="note">📝 Notes</button><button class="chip-btn" data-vfilter="file">📎 Files</button>
         </div>
-        <div class="card list" id="vaultList"></div>
+        <div class="card list" id="vaultList" data-acc-title="🔐 Saved items" data-acc-noun="item"></div>
         <p class="fine">🔒 End-to-end encrypted · locks after 5 idle minutes<br><button class="link" id="vaultChangePw">Change vault password</button></p>
       </div>
     </main>
@@ -524,17 +601,19 @@
          harvest and a ₹40,000 fertiliser bill would swamp a chart of daily
          spending, and the two are different books kept for different reasons. -->
     <main class="view" id="viewFarm" hidden>
-      <div class="card hero">
-        <div class="label">Profit</div>
+      <div class="card hero farm-hero">
+        <div class="label"><span id="fmProfitLbl">Profit</span> <span class="fm-pill" id="fmMargin"></span></div>
         <div class="big num" id="fmProfit">—</div>
         <div class="split">
           <div class="chip"><span>Income</span><b class="num" id="fmIncome">—</b></div>
           <div class="chip"><span>Spent</span><b class="num" id="fmSpent">—</b></div>
           <div class="chip"><span>Yield</span><b class="num" id="fmYield">—</b></div>
         </div>
+        <div class="fm-cover"><i id="fmCover"></i></div>
+        <div class="carry" id="fmCoverLbl"></div>
       </div>
       <div class="chips mt mb" id="fmYears" role="group" aria-label="Year"></div>
-      <div class="card list" id="fmByCrop"></div>
+      <div class="card chart-card" id="fmByCrop" data-acc-title="🌾 By crop" data-acc-noun="crop"></div>
       <!-- Both ways in, side by side and visible.
            The ＋ in the tab bar already added a crop, but nothing on screen
            said so -- which made typing one in look impossible and pasting a
@@ -545,7 +624,7 @@
         <button class="chip-btn" id="fmSpend">💸 Add expense</button>
         <button class="chip-btn" id="fmImport">📋 Paste a sheet</button>
       </div>
-      <div class="card list" id="fmList"></div>
+      <div class="card list" id="fmList" data-acc-title="🌱 Crops" data-acc-noun="crop"></div>
     </main>
 
     <nav class="tabbar" aria-label="Main">

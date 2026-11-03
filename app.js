@@ -25,6 +25,7 @@ const DEBIT_CATEGORIES = [
   { name: "Movies & Subscriptions", icon: "🎬", short: "Fun" },
   { name: "Education & Courses", icon: "📚", short: "Education" },
   { name: "Loan EMI / Debt Paid", icon: "💳", short: "EMI" },
+  { name: "Investments & SIP", icon: "📈", short: "Invest" },
   { name: "Personal & Miscellaneous", icon: "💼", short: "Other" },
 ];
 const CREDIT_CATEGORIES = [
@@ -174,7 +175,7 @@ $("resetForm").onsubmit = async (e) => {
 
 /* ════════════════ data ════════════════ */
 function fromRow(r) {
-  return { id: r.id, type: r.type, amount: Number(r.amount), category: r.category, desc: r.description || "", paymentMode: r.payment_mode || "UPI", date: r.tx_date, time: r.tx_time || "", createdAt: r.created_at };
+  return { id: r.id, type: r.type, amount: Number(r.amount), category: r.category, desc: r.description || "", paymentMode: r.payment_mode || "UPI", date: r.tx_date, time: r.tx_time || "", createdAt: r.created_at, legacyId: r.legacy_id || null };
 }
 function toRow(t) {
   const time = String(t.time || "").slice(0, 5);
@@ -261,12 +262,17 @@ function render() {
   renderHero(); renderDay(); renderMonth(); renderYear(); renderSettings();
   for (const f of renderHooks) f();
 }
+// Cash carried in from every month before `month` ("YYYY-MM").
+function openingBalance(month) { return totals(state.tx.filter((t) => t.date < month + "-01")).n; }
 function renderHero() {
-  const m = totals(state.tx.filter((t) => t.date.startsWith(todayStr().slice(0, 7))));
-  $("heroLabel").textContent = `${monthLabel(todayStr().slice(0, 7))} · net balance`;
-  $("heroNet").textContent = state.loaded ? signed(m.n) : "—";
+  const cur = todayStr().slice(0, 7);
+  const m = totals(state.tx.filter((t) => t.date.startsWith(cur)));
+  const open = openingBalance(cur);
+  $("heroLabel").textContent = `Cash balance · ${monthLabel(cur)}`;
+  $("heroNet").textContent = state.loaded ? signed(open + m.n) : "—";
   $("heroIn").textContent = state.loaded ? fmt(m.i) : "—";
   $("heroOut").textContent = state.loaded ? fmt(m.o) : "—";
+  $("heroCarry").textContent = state.loaded ? `${signed(open)} from ${monthLabel(shiftMonth(cur, -1))} · ${m.n >= 0 ? "+" : ""}${signed(m.n)} this month` : "";
 }
 function renderDay() {
   $("dayTitle").textContent = dayLabel(state.day);
@@ -293,13 +299,31 @@ function renderMonth() {
   const inD = new Array(days + 1).fill(0), outD = new Array(days + 1).fill(0);
   for (const t of items) { const d = +t.date.slice(8, 10); t.type === "credit" ? (inD[d] += +t.amount) : (outD[d] += +t.amount); }
   drawBars($("monChart"), Array.from({ length: days }, (_, k) => ({ a: inD[k + 1], b: outD[k + 1], label: (k + 1) % 5 === 0 || k === 0 ? String(k + 1) : "" })));
-  // categories
+  // cash balance: opening → closing
+  const open = openingBalance(state.month), close = open + sum.n;
+  $("cbOpen").textContent = signed(open); $("cbClose").textContent = signed(close);
+  $("cbClose").className = "num " + (close >= 0 ? "credit" : "debit");
+  $("cbIn").textContent = "+" + fmt(sum.i); $("cbOut").textContent = "−" + fmt(sum.o);
+  $("cbPrevLbl").textContent = `Carried from ${monthLabel(shiftMonth(state.month, -1))}`;
+  const total = Math.max(1, Math.abs(open) + sum.i + sum.o);
+  $("cbFlow").innerHTML = `<i style="flex:${Math.abs(open) / total};background:var(--brand)"></i><i style="flex:${sum.i / total};background:var(--credit)"></i><i style="flex:${sum.o / total};background:var(--debit)"></i>`;
+  // where it went: donut + tap a category to see its entries
   const cats = {};
-  for (const t of items) if (t.type === "debit") cats[t.category] = (cats[t.category] || 0) + +t.amount;
-  const top = Object.entries(cats).sort((a, b) => b[1] - a[1]);
-  $("monCats").innerHTML = top.length ? top.map(([name, amt]) => {
-    const c = catOf({ type: "debit", category: name }), pct = sum.o ? Math.round((amt / sum.o) * 100) : 0;
-    return `<div class="cat"><div class="ico">${c.icon}</div><div><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.name)}</b><small>${pct}%</small></div><div class="bar"><i style="width:${pct}%"></i></div></div><b class="num">${fmt(amt)}</b></div>`;
+  for (const t of items) if (t.type === "debit") (cats[t.category] = cats[t.category] || []).push(t);
+  const top = Object.entries(cats).map(([n, l]) => [n, l, totals(l).o]).sort((a, b) => b[2] - a[2]);
+  const PAL = ["#6366F1", "#F59E0B", "#EC4899", "#10B981", "#06B6D4", "#8B5CF6", "#F97316", "#84CC16", "#EF4444", "#64748B"];
+  let acc = 0, segs = "";
+  top.forEach(([, , amt], k) => {
+    const f = sum.o ? amt / sum.o : 0, C = 2 * Math.PI * 40;
+    segs += `<circle cx="50" cy="50" r="40" fill="none" stroke="${PAL[k % PAL.length]}" stroke-width="14" stroke-dasharray="${f * C} ${C}" stroke-dashoffset="${-acc * C}" transform="rotate(-90 50 50)"/>`;
+    acc += f;
+  });
+  $("monDonut").innerHTML = top.length ? `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="var(--surface-2)" stroke-width="14"/>${segs}</svg><div class="donut-mid"><small>Spent</small><b class="num">${fmt(sum.o)}</b><small>${top.length} categories</small></div>` : "";
+  $("monCats").innerHTML = top.length ? top.map(([name, list, amt], k) => {
+    const c = catOf({ type: "debit", category: name }), pct = sum.o ? Math.round((amt / sum.o) * 100) : 0, col = PAL[k % PAL.length];
+    const avg = amt / list.length, biggest = Math.max(...list.map((t) => +t.amount));
+    return `<details class="cat-d"><summary class="cat"><div class="ico" style="background:${col}22">${c.icon}</div><div><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.name)}</b><small>${pct}% · ${list.length}×</small></div><div class="bar"><i style="width:${pct}%;background:${col}"></i></div></div><b class="num">${fmt(amt)}</b></summary>
+      <div class="cat-more"><div class="cat-kpis"><span>Avg<b class="num">${fmt(avg)}</b></span><span>Biggest<b class="num">${fmt(biggest)}</b></span><span>Entries<b>${list.length}</b></span></div>${list.map(txItem).join("")}</div></details>`;
   }).join("") : emptyBox("🥧", "No spending this month.");
   // ledger, with search
   const q = $("monSearch").value.trim().toLowerCase();
@@ -350,7 +374,14 @@ function renderSettings() {
 const TITLES = { viewHome: "Today", viewMonth: "Monthly", viewLoans: "Lend & borrow", viewMore: "More", viewYear: "Yearly", viewInvest: "Investments", viewVault: "Vault", viewSettings: "Settings", viewFarm: "Farm" };
 // pages opened from More: the More tab stays lit and a back arrow shows
 const PARENT = { viewYear: "viewMore", viewInvest: "viewMore", viewVault: "viewMore", viewSettings: "viewMore", viewFarm: "viewMore" };
-function go(view) {
+function go(view, fromHistory) {
+  if (!fromHistory && view !== state.view) {
+    // a sub-page (Year, Farm…) is one step deeper; switching tabs replaces the step
+    const deeper = !!PARENT[view] && !PARENT[state.view];
+    if (view === "viewHome") { if (history.state && history.state.view && history.state.view !== "viewHome") history.back(); }
+    else if (deeper || !history.state || history.state.view === "viewHome") history.pushState({ view }, "");
+    else history.replaceState({ view }, "");
+  }
   state.view = view;
   for (const v of Object.keys(TITLES)) $(v).hidden = v !== view;
   const tab = PARENT[view] || view;
@@ -378,7 +409,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) hiddenSince = Date.now();
   else if (!state.hideAmounts && Date.now() - hiddenSince > 60000) setHidden(true);
 });
-$("backBtn").onclick = () => go("viewMore");
+$("backBtn").onclick = () => history.back();
 document.addEventListener("click", (e) => { const t = e.target.closest("[data-go]"); if (t) go(t.dataset.go); });
 $("dayPrev").onclick = () => { state.day = shiftDate(state.day, -1); renderDay(); };
 $("dayNext").onclick = () => { state.day = shiftDate(state.day, 1); renderDay(); };
@@ -430,17 +461,57 @@ function openSheet(editId) {
   sheetOpenFor = editId;
   if (!t) setTimeout(() => $("fAmount").focus(), 300);
 }
+let ownBack = false;   // the next popstate is our own history.back(), not the phone's Back
+let layerStep = false; // a history entry exists for the open sheet
 function openLayer(el) {
+  if (!layerStep) { history.pushState({ ...(history.state || {}), layer: true }, ""); layerStep = true; }
+  el.style.transform = "";
   const scrim = $("scrim"); scrim.hidden = false; el.hidden = false;
   requestAnimationFrame(() => { scrim.classList.add("on"); el.classList.add("on"); });
 }
-function closeLayers() {
+function closeLayers(fromHistory) {
+  if (layerStep) { layerStep = false; if (fromHistory !== true) { ownBack = true; history.back(); } }
   for (const id of ["sheet", "panel", "confirm", "scrim"]) {
     const el = $(id); el.classList.remove("on");
     setTimeout(() => { if (!el.classList.contains("on")) el.hidden = true; }, 320);
   }
 }
-$("scrim").onclick = closeLayers;
+$("scrim").onclick = () => closeLayers();
+window.addEventListener("popstate", (e) => {
+  if (ownBack) { ownBack = false; return; }
+  if (layerStep) return closeLayers(true);
+  const v = (e.state && e.state.view) || "viewHome";
+  if (state.user && v !== state.view) go(v, true);
+});
+try { if (!history.state) history.replaceState({ view: "viewHome" }, ""); } catch (e) {}
+
+// drag a sheet down to close it — finger, mouse or pen. A finger can drag from
+// anywhere while the sheet is scrolled to the top; a mouse drags the handle.
+for (const id of ["sheet", "panel", "confirm"]) {
+  const el = $(id);
+  let y0 = 0, dy = 0, t0 = 0, pid = null, armed = false, moved = false;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button > 0) return;
+    const onHandle = !!e.target.closest(".grabber");
+    if (!onHandle && (e.pointerType === "mouse" || el.scrollTop > 0 || e.target.closest("input, textarea, select, button, a, label"))) return;
+    pid = e.pointerId; y0 = e.clientY; dy = 0; t0 = Date.now(); armed = true; moved = false;
+    if (onHandle) { el.setPointerCapture(pid); e.preventDefault(); }
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!armed || e.pointerId !== pid) return;
+    dy = Math.max(0, e.clientY - y0);
+    if (!moved && dy > 6) { moved = true; el.style.transition = "none"; try { el.setPointerCapture(pid); } catch (er) {} }
+    if (moved) el.style.transform = `translate(-50%, ${dy}px)`;
+  });
+  const end = (e) => {
+    if (!armed || e.pointerId !== pid) return;
+    armed = false; el.style.transition = ""; el.style.transform = "";
+    const fast = dy > 40 && dy / Math.max(1, Date.now() - t0) > 0.5;
+    if (moved && (dy > 110 || fast)) closeLayers();
+  };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+}
+
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLayers(); });
 $("fab").onclick = () => (fabHooks[state.view] || (() => openSheet(null)))();
 $("sheet").onsubmit = async (e) => {
@@ -576,6 +647,29 @@ function duration(a, b) {
   const d = daysBetween(addMonths(a, m), b), y = Math.floor(m / 12), mo = m % 12;
   return [y && `${y} yr`, mo && `${mo} mo`, (d || !m) && `${d} d`].filter(Boolean).join(" ");
 }
+
+/* ── every list folds: tap its header to open or close it ──
+   Each list is wrapped in a <details>; what you left open or closed is
+   remembered per list on this device. The count updates as the list fills. */
+(function makeAccordions() {
+  const KEY = "fintrack_acc_open"; // lists start closed; only the ones you open stay open
+  let opened = {}; try { opened = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
+  document.querySelectorAll("[data-acc-title]").forEach((list) => {
+    const d = document.createElement("details");
+    d.className = "acc"; d.open = !!opened[list.id];
+    const [ico, ...rest] = list.dataset.accTitle.split(" ");
+    const noun = list.dataset.accNoun || "item";
+    d.innerHTML = `<summary><span class="acc-ico">${esc(ico)}</span><span class="acc-t"><b>${esc(rest.join(" "))}</b><small class="acc-n"></small></span><svg class="acc-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>`;
+    list.parentNode.insertBefore(d, list); d.appendChild(list);
+    d.addEventListener("toggle", () => { opened[list.id] = d.open; try { localStorage.setItem(KEY, JSON.stringify(opened)); } catch (e) {} });
+    const count = () => {
+      const n = [...list.children].filter((c) => !c.matches(".day-head, .empty, .skeleton, .legend, h3")).length;
+      d.querySelector(".acc-n").textContent = n ? `${n} ${n === 1 ? noun : noun.replace(/y$/, "ie") + "s"}` : "Nothing here yet";
+    };
+    if (list.dataset.accSub) { d.querySelector(".acc-n").textContent = list.dataset.accSub; return; }
+    new MutationObserver(count).observe(list, { childList: true }); count();
+  });
+})();
 
 /* ════════════════ start ════════════════ */
 async function enterApp(user) {

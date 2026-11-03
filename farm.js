@@ -102,6 +102,9 @@ $("fmSpend").onclick = () => openSpendPicker();
 $("fmImport").onclick = () => openFarmImport();
 
 /* ── the dashboard ── */
+const CROP_ICONS = [[/paddy|rice|wheat|jowar|bajra|ragi/i, "🌾"], [/maize|corn/i, "🌽"], [/chill?i|mirchi/i, "🌶️"], [/groundnut|peanut/i, "🥜"], [/tomato/i, "🍅"], [/sugar ?cane/i, "🎋"], [/onion/i, "🧅"], [/banana/i, "🍌"], [/mango/i, "🥭"], [/cotton/i, "☁️"], [/potato/i, "🥔"], [/coconut/i, "🥥"]];
+function cropIcon(name) { const hit = CROP_ICONS.find(([re]) => re.test(name || "")); return hit ? hit[1] : "🌱"; }
+
 function farmYears() {
   return [...new Set(state.cycles.map((c) => c.year))].sort((a, b) => b - a);
 }
@@ -115,14 +118,17 @@ function renderFarm() {
   const spent = shown.reduce((s, c) => s + cycleSpent(c), 0);
   const profit = income - spent;
 
-  $("fmProfit").textContent = fmt(profit);
-  $("fmProfit").style.color = profit < 0 ? "var(--debit)" : "var(--credit)";
+  $("fmProfit").textContent = (profit < 0 ? "−" : "") + fmt(profit);
+  $("fmProfitLbl").textContent = profit < 0 ? "Loss" : "Profit";
   $("fmIncome").textContent = fmt(income);
   $("fmSpent").textContent = fmt(spent);
-  // The one number that says whether the season was worth it, and the one a
-  // farmer actually quotes. Hidden until there is something to divide.
   const qtl = shown.reduce((s, c) => s + cycleQtl(c), 0);
   $("fmYield").textContent = qtl > 0 ? `${qtl.toFixed(2)} qtl` : "—";
+  const margin = income > 0 ? Math.round((profit / income) * 100) : null;
+  $("fmMargin").textContent = margin == null ? `${shown.length} ${shown.length === 1 ? "crop" : "crops"}` : `${margin >= 0 ? "▲" : "▼"} ${Math.abs(margin)}% margin · ${shown.length} ${shown.length === 1 ? "crop" : "crops"}`;
+  $("fmMargin").className = "fm-pill " + (margin != null && margin < 0 ? "bad" : "");
+  $("fmCover").style.width = `${income > 0 ? Math.min(100, (spent / income) * 100) : spent > 0 ? 100 : 0}%`;
+  $("fmCoverLbl").textContent = income > 0 ? `Costs took ${Math.round((spent / income) * 100)}% of income` : spent > 0 ? "Costs so far — no harvest yet" : "";
 
   // year chips
   $("fmYears").innerHTML =
@@ -140,21 +146,19 @@ function renderFarm() {
     byCrop[k].qtl += cycleQtl(c);
   }
   const crops = Object.entries(byCrop).sort((a, b) => b[1].income - a[1].income);
+  const maxCrop = Math.max(1, ...crops.map(([, v]) => Math.max(v.income, v.spent)));
   $("fmByCrop").innerHTML = crops.length
     ? crops.map(([name, v]) => {
-        const p = v.income - v.spent;
-        return `<div class="card item">
-          <div class="item-top">
-            <span class="avatar-sm ${p < 0 ? "debit-bg" : "credit-bg"}">${esc(name.trim()[0] || "?")}</span>
-            <span class="tx-main"><b>${esc(name)}</b><span>${v.qtl > 0 ? `${v.qtl.toFixed(2)} quintals` : "not harvested yet"}</span></span>
-          </div>
-          <div class="nums">
-            <div><small>Income</small><b class="num">${fmt(v.income)}</b></div>
-            <div><small>Spent</small><b class="num">${fmt(v.spent)}</b></div>
-            <div><small>Profit</small><b class="num ${p < 0 ? "debit" : "credit"}">${fmt(p)}</b></div>
+        const p = v.income - v.spent, m = v.income > 0 ? Math.round((p / v.income) * 100) : null;
+        return `<div class="fm-crop">
+          <span class="fm-ico">${cropIcon(name)}</span>
+          <div class="fm-crop-mid">
+            <div class="fm-row"><b>${esc(name)}</b><b class="num ${p < 0 ? "debit" : "credit"}">${p < 0 ? "−" : "+"}${fmt(p)}</b></div>
+            <div class="fm-bars"><i class="in" style="width:${(v.income / maxCrop) * 100}%"></i><i class="out" style="width:${(v.spent / maxCrop) * 100}%"></i></div>
+            <div class="fm-row fm-sub"><span>${v.qtl > 0 ? `${v.qtl.toFixed(2)} qtl` : "not harvested yet"}</span><span>${m == null ? "" : `${m}% margin`}</span></div>
           </div>
         </div>`;
-      }).join("")
+      }).join("") + `<div class="legend"><span><i style="background:var(--credit)"></i>Income</span><span><i style="background:var(--debit)"></i>Spent</span></div>`
     : emptyBox("🌾", "No crops yet. Add one above, or paste an old sheet if you have it.");
 
   // the cycles themselves
@@ -169,10 +173,13 @@ function renderFarm() {
         const badge = done
           ? (c.cut_date ? `<span class="badge ok">Cut ${esc(shortDate(c.cut_date))}</span>` : `<span class="badge ok">Harvested</span>`)
           : `<span class="badge">Growing</span>`;
-        return `<button class="card item" data-cycle="${esc(c.id)}">
+        const today = todayStr();
+        const days = !done && c.sow_date && c.sow_date <= today ? daysBetween(c.sow_date, today) : null;
+        const cover = income > 0 ? Math.min(100, (spent / income) * 100) : 100;
+        return `<button class="card item fm-cycle ${done ? (p < 0 ? "is-loss" : "is-win") : "is-growing"}" data-cycle="${esc(c.id)}">
           <div class="item-top">
-            <span class="avatar-sm ${done && p < 0 ? "debit-bg" : "credit-bg"}">${esc((c.crop || "?").trim()[0].toUpperCase())}</span>
-            <span class="tx-main"><b>${esc(cycleTitle(c))}</b><span>${esc(cycleWhen(c))}${done ? ` · ${cycleQtl(c).toFixed(2)} qtl` : ""}</span></span>
+            <span class="fm-ico">${cropIcon(c.crop)}</span>
+            <span class="tx-main"><b>${esc(cycleTitle(c))}</b><span>${esc(cycleWhen(c))}${done ? ` · ${cycleQtl(c).toFixed(2)} qtl` : days != null ? ` · day ${days + 1} in the field` : ""}</span></span>
             ${badge}
           </div>
           <div class="nums">
@@ -180,6 +187,7 @@ function renderFarm() {
             <div><small>Spent</small><b class="num">${fmt(spent)}</b></div>
             <div><small>${done ? (p < 0 ? "Loss" : "Profit") : "So far"}</small><b class="num ${done ? (p < 0 ? "debit" : "credit") : "debit"}">${done ? fmt(p) : fmt(-spent)}</b></div>
           </div>
+          ${done && income > 0 ? `<div class="fm-track" title="Share of income spent on costs"><i style="width:${cover}%"></i></div>` : ""}
         </button>`;
       }).join("")
     : emptyBox("🌾", "Nothing for this year.");
@@ -207,7 +215,6 @@ function openCycle(c) {
   const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
 
   const p = openPanel(`
-    <div class="grabber"></div>
     <h3>${esc(cycleTitle(c))}</h3>
     <p style="color:var(--text-2);margin:-6px 0 14px">${esc(cycleWhen(c))}${c.sow_date ? ` · sown ${shortDate(c.sow_date)}` : ""}${c.cut_date ? ` · cut ${shortDate(c.cut_date)}` : ""}</p>
 
@@ -304,7 +311,6 @@ function openCycle(c) {
 function openCycleForm(c) {
   const thisYear = new Date().getFullYear();
   const p = openPanel(`
-    <div class="grabber"></div>
     <h3>${c ? "Edit crop" : "New crop"}</h3>
     <div class="form-grid">
       <div class="field"><label for="cfCrop">Crop</label><input class="input" id="cfCrop" maxlength="40" placeholder="Paddy" value="${c ? esc(c.crop) : "Paddy"}"></div>
@@ -400,7 +406,6 @@ function openSpendPicker() {
   if (list.length === 1) { openExpenseForm(list[0]); return; }
 
   const p = openPanel(`
-    <div class="grabber"></div>
     <h3>Which crop?</h3>
     <p style="color:var(--text-2);margin:-6px 0 14px">${live.length ? "Still growing" : "All crops"} — tap the one you spent on.</p>
     <div class="card box">${list.map((c) => `
@@ -429,7 +434,6 @@ function openSpendPicker() {
 // The same picker without the "still growing" filter.
 function openSpendPickerAll() {
   const p = openPanel(`
-    <div class="grabber"></div>
     <h3>Which crop?</h3>
     <div class="card box">${state.cycles.map((c) => `
       <button class="item-top" data-pick="${esc(c.id)}" style="padding:10px 0;width:100%;background:none;border:0;text-align:left">
@@ -450,12 +454,11 @@ function openSpendPickerAll() {
 /* ── an expense against one cycle ── */
 function openExpenseForm(c) {
   const p = openPanel(`
-    <div class="grabber"></div>
     <h3>Spent on ${esc(cycleTitle(c))}</h3>
     <p style="color:var(--text-2);margin:-6px 0 14px">${esc(cycleWhen(c))}</p>
     <div class="amount"><span>${state.currency}</span><input id="efAmt" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0" aria-label="Amount"></div>
     <div class="field"><label>What for</label></div>
-    <div class="cat-grid" id="efCats">${CROP_CATS.map(([v, label], i) => `<button type="button" class="cat${i === 0 ? " on" : ""}" data-cat="${v}">${label}</button>`).join("")}</div>
+    <div class="fm-opts" id="efCats" role="radiogroup" aria-label="What for">${CROP_CATS.map(([v, label], i) => { const [ico, ...t] = label.split(" "); return `<button type="button" class="fm-opt${i === 0 ? " on" : ""}" role="radio" aria-checked="${i === 0}" data-cat="${v}"><span class="fm-opt-ico">${ico}</span><span class="fm-opt-t">${esc(t.join(" "))}</span><span class="fm-opt-tick" aria-hidden="true">✓</span></button>`; }).join("")}</div>
     <div class="form-grid" style="margin-top:12px">
       <div class="field"><label for="efDate">Date</label><input class="input" id="efDate" type="date" value="${todayStr()}"></div>
       <div class="field"><label for="efNote">Note</label><input class="input" id="efNote" maxlength="120" placeholder="optional"></div>
@@ -466,7 +469,7 @@ function openExpenseForm(c) {
 
   p.querySelector("#efCats").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-cat]"); if (!b) return;
-    p.querySelectorAll("#efCats .cat").forEach((x) => x.classList.toggle("on", x === b));
+    p.querySelectorAll("#efCats .fm-opt").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); });
   });
 
   p.querySelector("#efCancel").onclick = () => openCycle(c);
@@ -474,7 +477,7 @@ function openExpenseForm(c) {
     const err = p.querySelector("#efErr");
     const amount = round2(+p.querySelector("#efAmt").value || 0);
     if (!(amount > 0)) { err.textContent = "How much was it?"; err.hidden = false; return; }
-    const cat = p.querySelector("#efCats .cat.on");
+    const cat = p.querySelector("#efCats .fm-opt.on");
     const { data, error } = await sb.from("crop_expenses").insert({
       cycle_id: c.id,
       category: cat ? cat.dataset.cat : "other",
@@ -582,7 +585,6 @@ function parseSheet(text, defaultYear) {
 
 function openFarmImport() {
   const p = openPanel(`
-    <div class="grabber"></div>
     <h3>Paste last year's sheet</h3>
     <p style="color:var(--text-2);margin:-6px 0 14px">Select the rows in Excel or Google Sheets, copy, and paste them here. Year banners and subtotal rows are ignored.</p>
     <textarea class="input" id="fiText" rows="7" placeholder="1	20 Gunta	Kharif	–	11-Nov-2025	26	40	₹23.89	0	…" style="width:100%;font-family:ui-monospace,monospace;font-size:13px"></textarea>

@@ -138,7 +138,7 @@ create table if not exists public.investments (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null default auth.uid() references auth.users (id) on delete cascade,
   name            text not null check (char_length(name) between 1 and 80),
-  kind            text not null default 'sip' check (kind in ('sip', 'fd', 'rd', 'stocks', 'gold', 'ppf', 'chit', 'property', 'other')),
+  kind            text not null default 'sip' check (kind in ('sip', 'fd', 'rd', 'stocks', 'gold', 'ppf', 'chit', 'property', 'insurance', 'other')),
   monthly_amount  numeric(14, 2) not null default 0 check (monthly_amount >= 0 and monthly_amount <= 100000000000),
   lump_amount     numeric(14, 2) not null default 0 check (lump_amount >= 0 and lump_amount <= 100000000000),
   start_date      date not null,
@@ -151,6 +151,9 @@ create table if not exists public.investments (
   check (monthly_amount > 0 or lump_amount > 0)
 );
 create index if not exists investments_user_idx on public.investments (user_id);
+-- allow the "insurance" kind on databases made before it existed
+alter table public.investments drop constraint if exists investments_kind_check;
+alter table public.investments add constraint investments_kind_check check (kind in ('sip', 'fd', 'rd', 'stocks', 'gold', 'ppf', 'chit', 'property', 'insurance', 'other'));
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Vault — everything here is encrypted in the browser before it is sent.

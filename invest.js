@@ -14,7 +14,8 @@ const INV_KINDS = {
   rd: { icon: "🔁", label: "Recurring deposit", ret: 7, matures: true },
   stocks: { icon: "📊", label: "Stocks", ret: 12 },
   gold: { icon: "🪙", label: "Gold", ret: 9 },
-  ppf: { icon: "🛡️", label: "PPF / EPF / NPS", ret: 7.1 },
+  ppf: { icon: "🛡️", label: "PPF / EPF / NPS", ret: 7.1, noCash: true },
+  insurance: { icon: "☂️", label: "Insurance policy", ret: 8 },
   chit: { icon: "🤝", label: "Chit fund", ret: 8, matures: true },
   property: { icon: "🏠", label: "Property", ret: 6 },
   other: { icon: "💼", label: "Other", ret: 8 },
@@ -62,6 +63,36 @@ async function loadInvs() {
   const { data, error } = await sb.from("investments").select("*").order("start_date", { ascending: false });
   if (error) throw error;
   state.invs = data; state.invsLoaded = true;
+  await postInvDebits();
+}
+
+/* ── take investments out of cash ──
+   Every monthly instalment and every one-time buy (stocks, FD…) becomes a
+   "spent" entry on its date, so the cash balance drops. PF/PPF/EPF/NPS
+   (noCash) only grows here and never touches cash. Each entry carries a
+   legacy_id like "inv:<id>:2026-11-05", so it is only ever posted once.
+   Nothing is posted before AUTO_ON, so older months stay as you entered them. */
+const AUTO_ON = "2026-11-01";
+const INV_CATEGORY = "Investments & SIP";
+async function postInvDebits() {
+  if (!state.loaded) return;
+  const today = todayStr(), have = new Set(state.tx.map((t) => t.legacyId).filter(Boolean)), rows = [];
+  for (const i of state.invs) {
+    if ((INV_KINDS[i.kind] || {}).noCash) continue;
+    const created = (i.created_at || today).slice(0, 10), floor = created > AUTO_ON ? created : AUTO_ON;
+    const add = (key, amount, date) => {
+      const legacy_id = `inv:${i.id}:${key}`;
+      if (have.has(legacy_id) || !(amount > 0)) return;
+      rows.push({ type: "debit", amount: round2(amount), category: INV_CATEGORY, description: `${i.name} · auto`, payment_mode: "Auto debit", tx_date: date, legacy_id, user_id: state.user.id });
+    };
+    if (+i.lump_amount > 0 && created >= AUTO_ON && i.start_date <= today) add("lump", +i.lump_amount, i.start_date);
+    for (const d of instalments(i, today)) if (d >= floor) add(d, +i.monthly_amount, d);
+  }
+  if (!rows.length) return;
+  const { error } = await sb.from("transactions").upsert(rows, { onConflict: "user_id,legacy_id", ignoreDuplicates: true });
+  if (error) throw error;
+  await loadAll(); render();
+  toast(`${rows.length} investment ${rows.length === 1 ? "payment" : "payments"} taken from cash`);
 }
 loadHooks.push(loadInvs);
 resetHooks.push(() => Object.assign(state, { invs: [], invsLoaded: false }));
@@ -151,6 +182,7 @@ function openInvForm(i) {
       <div class="field"><label for="ifRet">Expected return (% a year)</label><input class="input" id="ifRet" type="number" inputmode="decimal" step="0.1" min="-100" max="100" value="${esc(v.expected_return)}"></div>
       <div class="field"><label for="ifCur">Actual value today</label><input class="input" id="ifCur" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(v.current_value ?? "")}" placeholder="optional"></div>
     </div>
+    <p class="fine left" id="ifCashNote"></p>
     <p class="fine left">Know the real value from your app or statement? Enter it under “Actual value today” — it replaces the estimate. Leave it empty to estimate from the expected return.</p>
     <div class="field mt"><label for="ifNote">Note (optional)</label><input class="input" id="ifNote" maxlength="500" value="${esc(v.note)}" placeholder="folio no., bank, nominee…"></div>
     <div class="calc-out" id="ifPreview"></div>
@@ -168,6 +200,7 @@ function openInvForm(i) {
   };
   const preview = () => {
     const r = read(), today = todayStr();
+    p.querySelector("#ifCashNote").textContent = INV_KINDS[kind].noCash ? "🛡️ Not taken from cash — this only grows here (e.g. PF deducted from salary)." : "💸 Each monthly amount and one-time buy is taken from your cash balance automatically on its date.";
     p.querySelector("#ifEndLabel").textContent = INV_KINDS[kind].matures ? "Matures on (optional)" : "Stop adding on (optional)";
     const out = p.querySelector("#ifPreview");
     if (!(r.monthly_amount > 0 || r.lump_amount > 0) || !r.start_date) { out.textContent = "Enter a monthly or one-time amount to see the numbers."; return; }
