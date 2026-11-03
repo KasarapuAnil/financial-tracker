@@ -671,6 +671,66 @@ function duration(a, b) {
   });
 })();
 
+/* ── pull down from the top of a page to refresh ──
+   Fetches everything again from the cloud (no page reload, so you stay where
+   you are). Works with a finger, and with a mouse on a PC. */
+(function pullToRefresh() {
+  const ind = document.createElement("div");
+  ind.className = "ptr"; ind.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  document.body.appendChild(ind);
+  const LIMIT = 80;
+  let y0 = 0, dy = 0, pid = null, armed = false, pulling = false, busyNow = false;
+  const layerOpen = () => ["sheet", "panel", "confirm"].some((id) => $(id).classList.contains("on"));
+  const paint = (d) => {
+    const k = Math.min(1, d / LIMIT);
+    ind.style.transform = `translate(-50%, ${Math.min(d, LIMIT + 20) - 50}px) rotate(${k * 270}deg)`;
+    ind.style.opacity = String(Math.min(1, k * 1.4));
+    ind.classList.toggle("ready", d >= LIMIT);
+  };
+  const canStart = (t) => !busyNow && state.user && !$("app").hidden && !layerOpen() && window.scrollY <= 0 && t.closest("main.view, .topbar") && !t.closest("input, textarea, select, button, a, summary, svg.chart");
+  const reset = () => { ind.style.transition = ""; ind.style.transform = ""; ind.style.opacity = ""; ind.classList.remove("ready", "spin"); };
+  document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "touch" || !canStart(e.target) || e.button > 0) return;
+    armed = true; pulling = false; pid = e.pointerId; y0 = e.clientY; dy = 0;
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (!armed || e.pointerId !== pid) return;
+    dy = (e.clientY - y0) * 0.5; // resistance
+    if (!pulling && dy > 8 && window.scrollY <= 0) { pulling = true; ind.style.transition = "none"; }
+    if (pulling) { paint(dy); if (e.cancelable) e.preventDefault(); }
+  }, { passive: false });
+  const end = async (e) => {
+    if (!armed || e.pointerId !== pid) return;
+    armed = false;
+    if (!pulling) return;
+    pulling = false; ind.style.transition = "";
+    if (dy < LIMIT) return reset();
+    busyNow = true; ind.classList.add("spin");
+    ind.style.transform = `translate(-50%, ${LIMIT - 40}px)`; ind.style.opacity = "1";
+    try {
+      await loadAll();
+      await Promise.all(loadHooks.map((f) => f().catch((er) => toast(friendly(er), "err"))));
+      render(); toast("Up to date");
+    } catch (er) { toast(friendly(er), "err"); }
+    busyNow = false; reset();
+  };
+  document.addEventListener("pointerup", end); document.addEventListener("pointercancel", end);
+  // touch screens: the browser claims pointer events for scrolling, so use touch events
+  const T = 0.5;
+  document.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1 || !canStart(e.target)) return;
+    armed = true; pulling = false; pid = "t"; y0 = e.touches[0].clientY; dy = 0;
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!armed || pid !== "t") return;
+    dy = (e.touches[0].clientY - y0) * T;
+    if (!pulling && dy > 8 && window.scrollY <= 0) { pulling = true; ind.style.transition = "none"; }
+    if (pulling) { paint(dy); if (e.cancelable) e.preventDefault(); }
+  }, { passive: false });
+  const tend = () => end({ pointerId: "t" });
+  document.addEventListener("touchend", tend); document.addEventListener("touchcancel", tend);
+})();
+
 /* ════════════════ start ════════════════ */
 async function enterApp(user) {
   state.user = user;

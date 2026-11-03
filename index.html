@@ -366,6 +366,14 @@
     .fm-opt.on { border-color: var(--credit); background: var(--credit-bg); color: var(--text); box-shadow: 0 6px 16px color-mix(in srgb, var(--credit) 25%, transparent); }
     .fm-opt.on .fm-opt-ico { background: var(--surface); }
     .fm-opt.on .fm-opt-tick { opacity: 1; transform: none; }
+    html, body { overscroll-behavior-y: contain; } /* our own pull-to-refresh, not the browser's full reload */
+    main.view { touch-action: pan-x pan-y; }
+    .ptr { position: fixed; top: 0; left: 50%; z-index: 30; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--muted); box-shadow: var(--shadow); border: 1px solid var(--line); transform: translate(-50%, -50px); opacity: 0; transition: transform .25s ease, opacity .25s ease; pointer-events: none; }
+    .ptr svg { width: 20px; height: 20px; }
+    .ptr.ready { color: var(--brand); }
+    .ptr.spin { color: var(--brand); }
+    .ptr.spin svg { animation: ptrSpin .8s linear infinite; }
+    @keyframes ptrSpin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
