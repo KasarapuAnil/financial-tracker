@@ -154,6 +154,10 @@ create index if not exists investments_user_idx on public.investments (user_id);
 -- allow the "insurance" kind on databases made before it existed
 alter table public.investments drop constraint if exists investments_kind_check;
 alter table public.investments add constraint investments_kind_check check (kind in ('sip', 'fd', 'rd', 'stocks', 'gold', 'ppf', 'chit', 'property', 'insurance', 'other'));
+-- how often the regular amount (monthly_amount) is paid: every 1, 3, 6 or 12 months
+alter table public.investments add column if not exists frequency_months int not null default 1;
+alter table public.investments drop constraint if exists investments_frequency_check;
+alter table public.investments add constraint investments_frequency_check check (frequency_months in (1, 3, 6, 12));
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Vault — everything here is encrypted in the browser before it is sent.

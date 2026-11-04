@@ -20,6 +20,33 @@ const INV_KINDS = {
   property: { icon: "🏠", label: "Property", ret: 6 },
   other: { icon: "💼", label: "Other", ret: 8 },
 };
+// how often the regular amount is paid (months between payments); 0 = one-time only
+const FREQS = [
+  { m: 0, label: "One-time", sub: "pay once" },
+  { m: 1, label: "Monthly", sub: "every month", per: "month" },
+  { m: 3, label: "Quarterly", sub: "every 3 months", per: "quarter" },
+  { m: 6, label: "Half-yearly", sub: "every 6 months", per: "6 months" },
+  { m: 12, label: "Yearly", sub: "once a year", per: "year" },
+];
+const freqOf = (i) => [1, 3, 6, 12].includes(+i.frequency_months) ? +i.frequency_months : 1;
+const freqInfo = (m) => FREQS.find((f) => f.m === m) || FREQS[1];
+// the regular amount spread per month, e.g. ₹30,000 every 6 months → ₹5,000/month
+const perMonth = (i) => +i.monthly_amount / freqOf(i);
+// next payment on or after a date (null when it has stopped)
+function nextDue(i, from = todayStr()) {
+  if (!(+i.monthly_amount > 0)) return null;
+  const f = freqOf(i);
+  for (let k = 0; k < 1200; k++) {
+    const d = addMonths(i.start_date, k * f);
+    if (i.end_date && d > i.end_date) return null;
+    if (d >= from) return d;
+  }
+  return null;
+}
+function dueLabel(d) {
+  const n = daysBetween(todayStr(), d);
+  return n === 0 ? "Due today" : n === 1 ? "Tomorrow" : n < 31 ? `In ${n} days` : shortDate(d);
+}
 Object.assign(state, { invs: [], invsLoaded: false, invYears: 10 });
 
 /* ── the calculation ── */
@@ -28,7 +55,8 @@ function instalments(i, upTo) {
   const out = [];
   if (+i.monthly_amount > 0) {
     const stop = i.end_date && i.end_date < upTo ? i.end_date : upTo;
-    for (let k = 0; k < 1200; k++) { const d = addMonths(i.start_date, k); if (d > stop) break; out.push(d); }
+    const f = freqOf(i);
+    for (let k = 0; k < 1200; k++) { const d = addMonths(i.start_date, k * f); if (d > stop) break; out.push(d); }
   }
   return out;
 }
@@ -108,8 +136,13 @@ function renderInvest() {
   $("iGain").textContent = (t.gain >= 0 ? "+" : "−") + fmt(t.gain);
   $("iGainPct").textContent = pct(t.gain, t.invested).trim();
   const monthly = activeMonthly();
-  $("iMonthly").textContent = fmt(monthly.reduce((s, i) => s + +i.monthly_amount, 0));
-  $("iMonthlySub").textContent = monthly.length ? `every month across ${monthly.length} ${monthly.length === 1 ? "investment" : "investments"}` : "no monthly investments running";
+  $("iMonthly").textContent = fmt(monthly.reduce((s, i) => s + perMonth(i), 0)) + "/mo";
+  $("iMonthlySub").textContent = monthly.length ? `on average across ${monthly.length} running ${monthly.length === 1 ? "investment" : "investments"} · ${fmt(monthly.reduce((s, i) => s + perMonth(i) * 12, 0))} a year` : "no regular investments running";
+  // upcoming payments in the next 90 days
+  const soon = state.invs.map((i) => ({ i, d: nextDue(i) })).filter((x) => x.d && daysBetween(today, x.d) <= 90).sort((a, b) => (a.d < b.d ? -1 : 1));
+  const up = $("iUpcoming");
+  up.hidden = !soon.length;
+  up.innerHTML = soon.length ? `<span class="muted small-label">Coming up</span>` + soon.slice(0, 6).map(({ i, d }) => `<div class="due-row"><span class="avatar-sm brand-bg">${(INV_KINDS[i.kind] || INV_KINDS.other).icon}</span><span class="tx-main"><b>${esc(i.name)}</b><span>${fmt(i.monthly_amount)} · ${esc(freqInfo(freqOf(i)).label.toLowerCase())}</span></span><span class="due-when ${daysBetween(today, d) <= 7 ? "soon" : ""}">${esc(dueLabel(d))}</span></div>`).join("") : "";
   // projection
   document.querySelectorAll("[data-years]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.years === state.invYears));
   const pts = [];
@@ -126,10 +159,11 @@ function renderInvest() {
 function invCard(i) {
   const k = INV_KINDS[i.kind] || INV_KINDS.other, now = invAt(i, todayStr()), gain = now.value - now.invested;
   const parts = [];
-  if (+i.monthly_amount) parts.push(`${fmt(i.monthly_amount)}/month`);
+  if (+i.monthly_amount) parts.push(`${fmt(i.monthly_amount)}/${freqInfo(freqOf(i)).per}`);
   if (+i.lump_amount) parts.push(`${fmt(i.lump_amount)} once`);
   parts.push(`since ${shortDate(i.start_date)}`);
-  const ended = i.end_date && i.end_date < todayStr();
+  const ended = i.end_date && i.end_date < todayStr(), nd = !ended && nextDue(i);
+  if (nd) parts.push(`next ${shortDate(nd)}`);
   return `<button class="card item" data-inv="${esc(i.id)}">
     <div class="item-top">
       <span class="avatar-sm brand-bg">${k.icon}</span>
@@ -164,15 +198,17 @@ document.addEventListener("click", (e) => {
 
 /* ── add / edit an investment ── */
 function openInvForm(i) {
-  const v = i || { kind: "sip", name: "", monthly_amount: "", lump_amount: "", start_date: todayStr(), end_date: "", expected_return: INV_KINDS.sip.ret, current_value: null, note: "" };
-  let kind = v.kind;
+  const v = i || { kind: "sip", name: "", monthly_amount: "", lump_amount: "", frequency_months: 1, start_date: todayStr(), end_date: "", expected_return: INV_KINDS.sip.ret, current_value: null, note: "" };
+  let kind = v.kind, freq = i && !(+i.monthly_amount > 0) ? 0 : freqOf(v);
   const p = openPanel(`
     <h3>${i ? "Edit investment" : "New investment"}</h3>
     <div class="cat-grid" id="ifKinds">${Object.entries(INV_KINDS).map(([k, x]) => `<button type="button" class="cat-opt" data-kind="${k}" aria-pressed="${k === kind}"><b>${x.icon}</b>${esc(x.label.split(" / ")[0])}</button>`).join("")}</div>
     <div class="field"><label for="ifName">Name</label><input class="input" id="ifName" maxlength="80" value="${esc(v.name)}" placeholder="e.g. Nifty 50 index fund, SBI FD"></div>
-    <div class="form-grid mt">
-      <div class="field"><label for="ifMonthly">Every month</label><input class="input" id="ifMonthly" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(+v.monthly_amount || "")}" placeholder="0"></div>
-      <div class="field"><label for="ifLump">One-time amount</label><input class="input" id="ifLump" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(+v.lump_amount || "")}" placeholder="0"></div>
+    <label class="mt" style="display:block;font-weight:700;font-size:13px;margin-bottom:6px">How often do you pay?</label>
+    <div class="freq-grid" id="ifFreqs" role="group" aria-label="How often">${FREQS.map((f) => `<button type="button" class="freq-opt" data-freq="${f.m}" aria-pressed="${f.m === freq}"><b>${f.label}</b><span>${f.sub}</span></button>`).join("")}</div>
+    <div class="form-grid">
+      <div class="field" id="ifMonthlyWrap"><label for="ifMonthly" id="ifMonthlyLabel"></label><input class="input" id="ifMonthly" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(+v.monthly_amount || "")}" placeholder="0"></div>
+      <div class="field"><label for="ifLump" id="ifLumpLabel"></label><input class="input" id="ifLump" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(+v.lump_amount || "")}" placeholder="0"></div>
     </div>
     <div class="form-grid">
       <div class="field"><label for="ifStart">Started on</label><input class="input" id="ifStart" type="date" value="${esc(v.start_date)}"></div>
@@ -192,7 +228,7 @@ function openInvForm(i) {
     const cur = p.querySelector("#ifCur").value;
     return {
       kind, name: p.querySelector("#ifName").value.trim(),
-      monthly_amount: num(p.querySelector("#ifMonthly").value || 0), lump_amount: num(p.querySelector("#ifLump").value || 0),
+      monthly_amount: freq ? num(p.querySelector("#ifMonthly").value || 0) : 0, frequency_months: freq || 1, lump_amount: num(p.querySelector("#ifLump").value || 0),
       start_date: p.querySelector("#ifStart").value, end_date: p.querySelector("#ifEnd").value || null,
       expected_return: num(p.querySelector("#ifRet").value || 0), current_value: cur === "" ? null : num(cur),
       note: p.querySelector("#ifNote").value.trim(),
@@ -200,12 +236,18 @@ function openInvForm(i) {
   };
   const preview = () => {
     const r = read(), today = todayStr();
-    p.querySelector("#ifCashNote").textContent = INV_KINDS[kind].noCash ? "🛡️ Not taken from cash — this only grows here (e.g. PF deducted from salary)." : "💸 Each monthly amount and one-time buy is taken from your cash balance automatically on its date.";
+    p.querySelector("#ifCashNote").textContent = INV_KINDS[kind].noCash ? "🛡️ Not taken from cash — this only grows here (e.g. PF deducted from salary)." : "💸 Each payment and one-time buy is taken from your cash balance automatically on its date.";
+    const fi = freqInfo(freq);
+    p.querySelector("#ifMonthlyWrap").hidden = !freq;
+    p.querySelector("#ifMonthlyLabel").textContent = freq ? `Amount ${fi.sub}` : "";
+    p.querySelector("#ifLumpLabel").textContent = freq ? "Extra one-time amount (optional)" : "Amount";
+    p.querySelector("#ifStart").previousElementSibling.textContent = freq ? "First payment on" : "Paid on";
     p.querySelector("#ifEndLabel").textContent = INV_KINDS[kind].matures ? "Matures on (optional)" : "Stop adding on (optional)";
     const out = p.querySelector("#ifPreview");
-    if (!(r.monthly_amount > 0 || r.lump_amount > 0) || !r.start_date) { out.textContent = "Enter a monthly or one-time amount to see the numbers."; return; }
+    if (!(r.monthly_amount > 0 || r.lump_amount > 0) || !r.start_date) { out.textContent = "Enter an amount to see the numbers."; return; }
+    const nd = nextDue(r), sched = r.monthly_amount > 0 ? `${fmt(r.monthly_amount)} ${fi.sub} = <b class="num">${fmt((r.monthly_amount * 12) / freq)}</b> a year${nd ? ` · next due <b>${esc(shortDate(nd))}</b>` : ""}<br>` : "";
     const now = invAt(r, today), y5 = invAt(r, addMonths(today, 60)), y10 = invAt(r, addMonths(today, 120));
-    out.innerHTML = `Invested so far <b class="num">${fmt(now.invested)}</b> · worth <b class="num">${fmt(now.value)}</b><br>In 5 years <b class="num">${fmt(y5.value)}</b> · in 10 years <b class="num">${fmt(y10.value)}</b>`;
+    out.innerHTML = `${sched}Invested so far <b class="num">${fmt(now.invested)}</b> · worth <b class="num">${fmt(now.value)}</b><br>In 5 years <b class="num">${fmt(y5.value)}</b> · in 10 years <b class="num">${fmt(y10.value)}</b>`;
   };
   p.querySelector("#ifKinds").onclick = (e) => {
     const b = e.target.closest("[data-kind]"); if (!b) return;
@@ -216,11 +258,17 @@ function openInvForm(i) {
     if (num(ret.value) === prevDefault || ret.value === "") ret.value = INV_KINDS[kind].ret;
     preview();
   };
+  p.querySelector("#ifFreqs").onclick = (e) => {
+    const b = e.target.closest("[data-freq]"); if (!b) return;
+    freq = +b.dataset.freq;
+    p.querySelectorAll("[data-freq]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    preview();
+  };
   p.addEventListener("input", preview); p.addEventListener("change", preview); preview();
   p.querySelector("#ifSave").onclick = async (e) => {
     const r = read();
     if (!r.name) return panelError(p, "Give it a name.");
-    if (!(r.monthly_amount >= 0) || !(r.lump_amount >= 0) || !(r.monthly_amount > 0 || r.lump_amount > 0)) return panelError(p, "Enter a monthly amount, a one-time amount, or both.");
+    if (!(r.monthly_amount >= 0) || !(r.lump_amount >= 0) || !(r.monthly_amount > 0 || r.lump_amount > 0)) return panelError(p, freq ? `Enter the amount you pay ${freqInfo(freq).sub}.` : "Enter the amount.");
     if (r.monthly_amount > 1e11 || r.lump_amount > 1e11 || (r.current_value != null && !(r.current_value >= 0 && r.current_value <= 1e11))) return panelError(p, "Check the amounts.");
     if (!r.start_date) return panelError(p, "Pick the start date.");
     if (r.end_date && r.end_date < r.start_date) return panelError(p, "The end date is before the start date.");
@@ -232,7 +280,7 @@ function openInvForm(i) {
       const { error } = i ? await sb.from("investments").update(row).eq("id", i.id) : await sb.from("investments").insert(row);
       if (error) throw error;
       await loadInvs(); render(); closeLayers(); toast(i ? "Investment updated" : "Investment added");
-    } catch (er) { panelError(p, friendly(er)); busy(e.currentTarget, false); }
+    } catch (er) { panelError(p, /frequency_months/.test(er && er.message || "") ? "Your database needs the new “how often” column — run supabase/schema.sql in the Supabase SQL editor." : friendly(er)); busy(e.currentTarget, false); }
   };
   if (i) p.querySelector("#ifDel").onclick = () => confirmAsk(`Delete “${i.name}”?`, "It will be removed from your investments.", async () => {
     const { error } = await sb.from("investments").delete().eq("id", i.id);
@@ -252,6 +300,6 @@ function renderMore() {
     ["⬆", "Money lent", "Due to you, with interest", l.get],
     ["⬇", "Money borrowed", "You owe, with interest", -l.owe],
   ].map(([ico, name, sub, v]) => `<div class="nw-row"><span class="ri">${ico}</span><span class="tx-main"><b>${name}</b><span>${sub}</span></span><b class="num ${v < 0 ? "debit" : ""}">${signed(v)}</b></div>`).join("");
-  const monthly = activeMonthly().reduce((s, i) => s + +i.monthly_amount, 0);
+  const monthly = activeMonthly().reduce((s, i) => s + perMonth(i), 0);
   $("tileInvSub").textContent = state.invs.length ? `${fmt(inv)} · ${fmt(monthly)}/mo` : "SIP, FD, gold…";
 }

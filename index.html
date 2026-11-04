@@ -208,6 +208,16 @@
     .cat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 6px 0 14px; }
     .cat-opt { border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 14px; padding: 10px 4px; display: grid; justify-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--text-2); line-height: 1.15; text-align: center; }
     .cat-opt b { font-size: 22px; font-weight: 400; }
+    .freq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .freq-opt { border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 14px; padding: 10px 8px; display: grid; gap: 2px; text-align: left; color: var(--text-2); }
+    .freq-opt b { font-size: 14px; color: var(--text); }
+    .freq-opt span { font-size: 11px; font-weight: 600; }
+    .freq-opt[aria-pressed="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, var(--surface)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+    .due-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+    .due-row:first-of-type { border-top: 0; }
+    .due-row .tx-main { flex: 1; min-width: 0; }
+    .due-when { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: var(--surface-2); white-space: nowrap; }
+    .due-when.soon { background: color-mix(in srgb, var(--brand) 16%, var(--surface)); color: var(--brand); }
     .cat-opt[aria-pressed="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, var(--surface)); color: var(--text); }
     .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-bottom: 14px; }
     .sheet-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; }
@@ -581,6 +591,7 @@
         </div>
       </div>
       <div class="card box"><span class="muted small-label">Investing</span><div class="big-line num" id="iMonthly">—</div><small class="muted" id="iMonthlySub"></small></div>
+      <div class="card box" id="iUpcoming" hidden></div>
       <div class="card chart-card">
         <h3>If you keep going</h3>
         <div class="chips mb" role="group" aria-label="Years ahead">
