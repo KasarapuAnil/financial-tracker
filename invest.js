@@ -53,6 +53,16 @@ function dueLabel(d) {
 }
 Object.assign(state, { invs: [], invsLoaded: false, invYears: 10 });
 
+/* ── money added later ("＋ Add money") ──
+   Each extra buy is a cash entry with legacy_id "inv:<id>:add:<stamp>": the
+   entry IS the record, so it is taken from cash once, and deleting it from
+   the cash list takes it out of the investment too. */
+const addKey = (i) => `inv:${i.id}:add:`;
+function topUps(i) {
+  const key = addKey(i);
+  return state.tx.filter((t) => t.legacyId && t.legacyId.startsWith(key) && t.type === "debit").map((t) => ({ date: t.date, amount: +t.amount }));
+}
+
 /* ── the calculation ── */
 function grow(r, from, to) { return to > from ? Math.pow(1 + r, daysBetween(from, to) / 365) : 1; }
 function instalments(i, upTo) {
@@ -71,6 +81,7 @@ function invEstimate(i, asOf) {
   const until = INV_KINDS[i.kind] && INV_KINDS[i.kind].matures && i.end_date && i.end_date < asOf ? i.end_date : asOf;
   let invested = +i.lump_amount, value = +i.lump_amount * grow(r, i.start_date, until);
   for (const d of instalments(i, asOf)) { invested += +i.monthly_amount; value += +i.monthly_amount * grow(r, d, until); }
+  for (const a of topUps(i)) if (a.date <= asOf) { invested += a.amount; value += a.amount * grow(r, a.date, until); }
   return { invested, value };
 }
 // the same, but anchored to the real current value when one was entered: that
@@ -84,6 +95,7 @@ function invAt(i, asOf) {
   const until = INV_KINDS[i.kind] && INV_KINDS[i.kind].matures && i.end_date && i.end_date < asOf ? i.end_date : asOf;
   let value = +i.current_value * grow(r, on, until);
   for (const d of instalments(i, asOf)) if (d > on) value += +i.monthly_amount * grow(r, d, until);
+  for (const a of topUps(i)) if (a.date > on && a.date <= asOf) value += a.amount * grow(r, a.date, until);
   return { invested: invEstimate(i, asOf).invested, value };
 }
 function invTotals(asOf) {
@@ -168,6 +180,8 @@ function invCard(i) {
   const parts = [];
   if (+i.monthly_amount) parts.push(`${fmt(i.monthly_amount)}/${freqInfo(freqOf(i)).per}`);
   if (+i.lump_amount) parts.push(`${fmt(i.lump_amount)} once`);
+  const added = topUps(i).reduce((s, a) => s + a.amount, 0);
+  if (added) parts.push(`+${fmt(added)} added`);
   parts.push(`since ${shortDate(i.start_date)}`);
   const ended = i.end_date && i.end_date < todayStr(), nd = !ended && nextDue(i, todayStr(), true);
   if (!ended && paidToday(i)) parts.push("paid today ✓");
@@ -231,6 +245,8 @@ function openInvForm(i) {
     <div class="field mt"><label for="ifNote">Note (optional)</label><input class="input" id="ifNote" maxlength="500" value="${esc(v.note)}" placeholder="folio no., bank, nominee…"></div>
     <div class="calc-out" id="ifPreview"></div>
     <div class="err-text" hidden></div>
+    ${i && !(INV_KINDS[i.kind] || {}).noCash ? `<button type="button" class="btn btn-ghost mt" id="ifAdd" style="width:100%">＋ Add money — bought more today</button>
+    <p class="fine left">Bought more? Use “Add money”: it is taken from your cash balance and added here from its date. Changing the one-time amount above only corrects your first buy.</p>` : ""}
     <div class="sheet-actions ${i ? "" : "single"} mt">${i ? `<button class="btn btn-danger" id="ifDel">Delete</button>` : ""}<button class="btn btn-primary" id="ifSave">${i ? "Save changes" : "Add investment"}</button></div>`);
   const read = () => {
     const cur = p.querySelector("#ifCur").value;
@@ -295,11 +311,55 @@ function openInvForm(i) {
       await loadInvs(); render(); closeLayers(); toast(i ? "Investment updated" : "Investment added");
     } catch (er) { panelError(p, /frequency_months|current_value_on/.test(er && er.message || "") ? "Your database needs the new “how often” column — run supabase/schema.sql in the Supabase SQL editor." : friendly(er)); busy(e.currentTarget, false); }
   };
-  if (i) p.querySelector("#ifDel").onclick = () => confirmAsk(`Delete “${i.name}”?`, "It will be removed from your investments.", async () => {
-    const { error } = await sb.from("investments").delete().eq("id", i.id);
-    if (error) throw error;
-    await loadInvs(); render(); toast("Investment deleted");
-  });
+  const addBtn = p.querySelector("#ifAdd");
+  if (addBtn) addBtn.onclick = () => openAddMoney(i);
+  if (i) p.querySelector("#ifDel").onclick = () => {
+    // the cash entries it made (its buys, instalments, money added): deleted
+    // with it, so their money comes back to the cash balance
+    const paid = state.tx.filter((t) => t.legacyId && t.legacyId.startsWith(`inv:${i.id}:`));
+    const back = paid.reduce((s, t) => s + (t.type === "debit" ? +t.amount : 0), 0);
+    confirmAsk(`Delete “${i.name}”?`, back ? `It will be removed from your investments, and the ${fmt(back)} it took from cash goes back to your cash balance.` : "It will be removed from your investments.", async () => {
+      if (paid.length) {
+        const { error } = await sb.from("transactions").delete().like("legacy_id", `inv:${i.id}:%`);
+        if (error) throw error;
+      }
+      const { error } = await sb.from("investments").delete().eq("id", i.id);
+      if (error) throw error;
+      await loadAll(); await loadInvs(); render(); toast(back ? `Investment deleted · ${fmt(back)} back in cash` : "Investment deleted");
+    });
+  };
+}
+
+/* ── ＋ Add money: an extra buy, taken from cash ── */
+function openAddMoney(i) {
+  const k = INV_KINDS[i.kind] || INV_KINDS.other;
+  const p = openPanel(`
+    <h3>${k.icon} Add money to ${esc(i.name)}</h3>
+    <div class="form-grid">
+      <div class="field"><label for="amAmt">Amount</label><input class="input" id="amAmt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
+      <div class="field"><label for="amDate">Date</label><input class="input" id="amDate" type="date" value="${esc(todayStr())}" max="${esc(todayStr())}"></div>
+    </div>
+    <p class="fine left">💸 This is taken from your cash balance and added to this investment from that date.</p>
+    <div class="err-text" hidden></div>
+    <div class="sheet-actions mt"><button class="btn btn-ghost" id="amBack">Back</button><button class="btn btn-primary" id="amSave">Add money</button></div>`);
+  p.querySelector("#amAmt").focus();
+  p.querySelector("#amBack").onclick = () => openInvForm(i);
+  p.querySelector("#amSave").onclick = async (e) => {
+    const amount = num(p.querySelector("#amAmt").value), date = p.querySelector("#amDate").value;
+    if (!(amount > 0) || amount > 1e11) return panelError(p, "Enter the amount you added.");
+    if (!date) return panelError(p, "Pick the date.");
+    if (date > todayStr()) return panelError(p, "The date can't be in the future.");
+    panelError(p, "");
+    busy(e.currentTarget, true);
+    try {
+      const { error } = await sb.from("transactions").insert({
+        type: "debit", amount: round2(amount), category: INV_CATEGORY, description: `${i.name} · added`,
+        payment_mode: "Auto debit", tx_date: date, legacy_id: `${addKey(i)}${Date.now()}`, user_id: state.user.id,
+      });
+      if (error) throw error;
+      await loadAll(); render(); closeLayers(); toast(`${fmt(amount)} added to ${i.name} and taken from cash`);
+    } catch (er) { panelError(p, friendly(er)); busy(e.currentTarget, false); }
+  };
 }
 
 /* ── More: everything summed up ── */
