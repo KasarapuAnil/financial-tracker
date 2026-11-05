@@ -378,9 +378,13 @@ function go(view, fromHistory) {
   if (!fromHistory && view !== state.view) {
     // a sub-page (Year, Farm…) is one step deeper; switching tabs replaces the step
     const deeper = !!PARENT[view] && !PARENT[state.view];
-    if (view === "viewHome") { if (history.state && history.state.view && history.state.view !== "viewHome") history.back(); }
-    else if (deeper || !history.state || history.state.view === "viewHome") history.pushState({ view }, "");
-    else history.replaceState({ view }, "");
+    // `depth`: how many steps this page is above Today in the history, so
+    // Today can go back all of them at once (More → Investments is two: one
+    // step back only reached More, and Today needed a second tap)
+    const depth = (history.state && history.state.depth) || 0;
+    if (view === "viewHome") { if (history.state && history.state.view && history.state.view !== "viewHome") history.go(-Math.max(1, depth)); }
+    else if (deeper || !history.state || history.state.view === "viewHome") history.pushState({ view, depth: depth + 1 }, "");
+    else history.replaceState({ view, depth }, "");
   }
   state.view = view;
   for (const v of Object.keys(TITLES)) $(v).hidden = v !== view;
