@@ -32,17 +32,21 @@ const freqOf = (i) => [1, 3, 6, 12].includes(+i.frequency_months) ? +i.frequency
 const freqInfo = (m) => FREQS.find((f) => f.m === m) || FREQS[1];
 // the regular amount spread per month, e.g. ₹30,000 every 6 months → ₹5,000/month
 const perMonth = (i) => +i.monthly_amount / freqOf(i);
-// next payment on or after a date (null when it has stopped)
-function nextDue(i, from = todayStr()) {
+// next payment on or after a date (null when it has stopped); with `after`,
+// strictly after it
+function nextDue(i, from = todayStr(), after = false) {
   if (!(+i.monthly_amount > 0)) return null;
   const f = freqOf(i);
   for (let k = 0; k < 1200; k++) {
     const d = addMonths(i.start_date, k * f);
     if (i.end_date && d > i.end_date) return null;
-    if (d >= from) return d;
+    if (after ? d > from : d >= from) return d;
   }
   return null;
 }
+// a payment falling today is already made: counted in "Invested" and (unless
+// noCash) taken from cash on its date, so it is "paid", not "due"
+const paidToday = (i) => nextDue(i) === todayStr();
 function dueLabel(d) {
   const n = daysBetween(todayStr(), d);
   return n === 0 ? "Due today" : n === 1 ? "Tomorrow" : n < 31 ? `In ${n} days` : shortDate(d);
@@ -69,15 +73,18 @@ function invEstimate(i, asOf) {
   for (const d of instalments(i, asOf)) { invested += +i.monthly_amount; value += +i.monthly_amount * grow(r, d, until); }
   return { invested, value };
 }
-// the same, but anchored to the real current value when one was entered
+// the same, but anchored to the real current value when one was entered: that
+// value is as of the day it was entered (current_value_on), and every payment
+// after that day is added on top of it, so an instalment taken from cash also
+// shows up here
 function invAt(i, asOf) {
-  const today = todayStr();
-  if (i.current_value == null || asOf < today) return invEstimate(i, asOf);
-  const r = (+i.expected_return || 0) / 100, base = invEstimate(i, today);
+  const on = i.current_value_on || todayStr();
+  if (i.current_value == null || asOf < on) return invEstimate(i, asOf);
+  const r = (+i.expected_return || 0) / 100;
   const until = INV_KINDS[i.kind] && INV_KINDS[i.kind].matures && i.end_date && i.end_date < asOf ? i.end_date : asOf;
-  let invested = base.invested, value = +i.current_value * grow(r, today, until);
-  for (const d of instalments(i, asOf)) if (d > today) { invested += +i.monthly_amount; value += +i.monthly_amount * grow(r, d, until); }
-  return { invested, value };
+  let value = +i.current_value * grow(r, on, until);
+  for (const d of instalments(i, asOf)) if (d > on) value += +i.monthly_amount * grow(r, d, until);
+  return { invested: invEstimate(i, asOf).invested, value };
 }
 function invTotals(asOf) {
   let invested = 0, value = 0;
@@ -139,7 +146,7 @@ function renderInvest() {
   $("iMonthly").textContent = fmt(monthly.reduce((s, i) => s + perMonth(i), 0)) + "/mo";
   $("iMonthlySub").textContent = monthly.length ? `on average across ${monthly.length} running ${monthly.length === 1 ? "investment" : "investments"} · ${fmt(monthly.reduce((s, i) => s + perMonth(i) * 12, 0))} a year` : "no regular investments running";
   // upcoming payments in the next 90 days
-  const soon = state.invs.map((i) => ({ i, d: nextDue(i) })).filter((x) => x.d && daysBetween(today, x.d) <= 90).sort((a, b) => (a.d < b.d ? -1 : 1));
+  const soon = state.invs.map((i) => ({ i, d: nextDue(i, today, true) })).filter((x) => x.d && daysBetween(today, x.d) <= 90).sort((a, b) => (a.d < b.d ? -1 : 1));
   const up = $("iUpcoming");
   up.hidden = !soon.length;
   up.innerHTML = soon.length ? `<span class="muted small-label">Coming up</span>` + soon.slice(0, 6).map(({ i, d }) => `<div class="due-row"><span class="avatar-sm brand-bg">${(INV_KINDS[i.kind] || INV_KINDS.other).icon}</span><span class="tx-main"><b>${esc(i.name)}</b><span>${fmt(i.monthly_amount)} · ${esc(freqInfo(freqOf(i)).label.toLowerCase())}</span></span><span class="due-when ${daysBetween(today, d) <= 7 ? "soon" : ""}">${esc(dueLabel(d))}</span></div>`).join("") : "";
@@ -162,7 +169,8 @@ function invCard(i) {
   if (+i.monthly_amount) parts.push(`${fmt(i.monthly_amount)}/${freqInfo(freqOf(i)).per}`);
   if (+i.lump_amount) parts.push(`${fmt(i.lump_amount)} once`);
   parts.push(`since ${shortDate(i.start_date)}`);
-  const ended = i.end_date && i.end_date < todayStr(), nd = !ended && nextDue(i);
+  const ended = i.end_date && i.end_date < todayStr(), nd = !ended && nextDue(i, todayStr(), true);
+  if (!ended && paidToday(i)) parts.push("paid today ✓");
   if (nd) parts.push(`next ${shortDate(nd)}`);
   return `<button class="card item" data-inv="${esc(i.id)}">
     <div class="item-top">
@@ -275,12 +283,17 @@ function openInvForm(i) {
     if (!(r.expected_return >= -100 && r.expected_return <= 100)) return panelError(p, "Expected return must be between −100% and 100%.");
     panelError(p, "");
     const row = { ...r, monthly_amount: round2(r.monthly_amount), lump_amount: round2(r.lump_amount), expected_return: round2(r.expected_return), current_value: r.current_value == null ? null : round2(r.current_value) };
+    // the actual value is as of today when it is entered or changed; kept as
+    // it was when left alone (editing the name doesn't move its date)
+    row.current_value_on = row.current_value == null ? null
+      : i && i.current_value != null && +i.current_value === row.current_value && i.current_value_on ? i.current_value_on
+      : todayStr();
     busy(e.currentTarget, true);
     try {
       const { error } = i ? await sb.from("investments").update(row).eq("id", i.id) : await sb.from("investments").insert(row);
       if (error) throw error;
       await loadInvs(); render(); closeLayers(); toast(i ? "Investment updated" : "Investment added");
-    } catch (er) { panelError(p, /frequency_months/.test(er && er.message || "") ? "Your database needs the new “how often” column — run supabase/schema.sql in the Supabase SQL editor." : friendly(er)); busy(e.currentTarget, false); }
+    } catch (er) { panelError(p, /frequency_months|current_value_on/.test(er && er.message || "") ? "Your database needs the new “how often” column — run supabase/schema.sql in the Supabase SQL editor." : friendly(er)); busy(e.currentTarget, false); }
   };
   if (i) p.querySelector("#ifDel").onclick = () => confirmAsk(`Delete “${i.name}”?`, "It will be removed from your investments.", async () => {
     const { error } = await sb.from("investments").delete().eq("id", i.id);

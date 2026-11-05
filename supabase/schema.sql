@@ -20,7 +20,16 @@ create table if not exists public.transactions (
 
 create index if not exists transactions_user_date_idx on public.transactions (user_id, tx_date desc);
 -- moving old browser entries in twice never makes duplicates
-create unique index if not exists transactions_user_legacy_idx on public.transactions (user_id, legacy_id) where legacy_id is not null;
+--
+-- NOT a partial index, for the same reason as crop_cycles_legacy_idx below:
+-- with "where legacy_id is not null" ON CONFLICT (user_id, legacy_id) cannot
+-- infer it (PostgREST's on_conflict can't send the predicate), and every
+-- upsert into transactions -- moving entries in, the investments' auto
+-- debits -- fails with "no unique or exclusion constraint matching the ON
+-- CONFLICT specification". NULLs are distinct in a unique index, so entries
+-- typed in by hand (no legacy_id) still never collide.
+drop index if exists public.transactions_user_legacy_idx;
+create unique index if not exists transactions_user_legacy_idx on public.transactions (user_id, legacy_id);
 
 -- keep updated_at current on every edit
 create or replace function public.touch_updated_at() returns trigger
@@ -158,6 +167,11 @@ alter table public.investments add constraint investments_kind_check check (kind
 alter table public.investments add column if not exists frequency_months int not null default 1;
 alter table public.investments drop constraint if exists investments_frequency_check;
 alter table public.investments add constraint investments_frequency_check check (frequency_months in (1, 3, 6, 12));
+-- the day "actual value" was entered: payments after it are added on top of
+-- it (without it, an instalment taken from cash never reached the value)
+alter table public.investments add column if not exists current_value_on date;
+update public.investments set current_value_on = updated_at::date
+  where current_value is not null and current_value_on is null;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Vault — everything here is encrypted in the browser before it is sent.
