@@ -9,7 +9,7 @@
        cash balance goes down when you hand the money over and up when you
        get it back.
    Neither entry is spending or income: totals() counts them on their own.
-   Every payment back adds its own linked cash entry ("loan:<id>:pay:<payId>"),
+   Every payment back adds its own linked cash entry ("loan:<id>:p:<payId>" — at most 80 characters, the database limit),
    and the loan closes by itself once it is fully settled.
    ════════════════════════════════════════════════════════════════════════════ */
 const FRIEND_OUT = { lent: "Lent to friend", borrowed: "Borrowed from friend" };
@@ -124,7 +124,7 @@ function openSettle(id) {
 async function recordFriendPayment(l, kind, amount, date, note = "") {
   const { data: pay, error } = await sb.from("loan_payments").insert({ loan_id: l.id, kind, amount: round2(amount), paid_on: date, note }).select().single();
   if (error) throw error;
-  const tx = await sb.from("transactions").insert(friendTx(l, kind, amount, date, `pay:${pay.id}`));
+  const tx = await sb.from("transactions").insert(friendTx(l, kind, amount, date, `p:${pay.id}`));
   if (tx.error) { await sb.from("loan_payments").delete().eq("id", pay.id); throw tx.error; }
   await loadLoans();
   const left = loanCalc(loanById(l.id), paysOf(l.id), date).balance;

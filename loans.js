@@ -207,7 +207,7 @@ function openLoan(id) {
   });
   p.querySelectorAll("[data-delpay]").forEach((b) => (b.onclick = () => confirmAsk("Remove this payment?", "The balance will be worked out again without it.", async () => {
     if (hand) {
-      const tx = await sb.from("transactions").delete().eq("legacy_id", `loan:${l.id}:pay:${b.dataset.delpay}`);
+      const tx = await sb.from("transactions").delete().eq("legacy_id", `loan:${l.id}:p:${b.dataset.delpay}`);
       if (tx.error) throw tx.error;
       if (l.closed_on) await sb.from("loans").update({ closed_on: null }).eq("id", l.id);
     }
