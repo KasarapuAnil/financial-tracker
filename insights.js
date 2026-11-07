@@ -166,8 +166,10 @@ function renderInsights() {
 
 // 1 · this year against the last, at a glance
 function renderCompare(Y, P) {
+  // saved = income − real spending: money put into investments is saved too
   const a = totals(inYear(Y)), b = totals(inYear(P));
-  const rate = a.i ? (a.n / a.i) * 100 : 0, rateP = b.i ? (b.n / b.i) * 100 : 0;
+  a.s = a.i - a.o; b.s = b.i - b.o;
+  const rate = a.i ? (a.s / a.i) * 100 : 0, rateP = b.i ? (b.s / b.i) * 100 : 0;
   const wY = worthAt(yearEnd(Y)), wP = worthAt(yearEnd(P));
   const ivY = invAtDate(yearEnd(Y)), ivP = invAtDate(yearEnd(P));
   const rateChg = !b.i ? `<span class="chg flat">—</span>` : `<span class="chg ${rate >= rateP ? "up" : "down"}">${rate >= rateP ? "▲" : "▼"} ${Math.abs(Math.round(rate - rateP))} pts</span>`;
@@ -175,7 +177,9 @@ function renderCompare(Y, P) {
     <div class="ins-grid">
       ${kpi("Income", money(a.i), chg(a.i, b.i), "credit")}
       ${kpi("Spent", money(a.o), chg(a.o, b.o, true), "debit")}
-      ${kpi("Saved", sgn(a.n), chg(a.n, b.n), a.n >= 0 ? "credit" : "debit")}
+      ${kpi("Saved", sgn(a.s), chg(a.s, b.s), a.s >= 0 ? "credit" : "debit")}
+      ${kpi("Invested", money(a.v), chg(a.v, b.v))}
+      ${kpi("Kept as cash", sgn(a.n), chg(a.n, b.n), a.n >= 0 ? "credit" : "debit")}
       ${kpi("Savings rate", `${Math.round(rate)}%`, rateChg)}
       ${kpi("Net worth (year end)", sgn(wY.net), chg(wY.net, wP.net))}
       ${kpi("Investments value", money(ivY.value), chg(ivY.value, ivP.value))}
@@ -212,35 +216,36 @@ function renderWorth(Y) {
 
 // 3 · month against month: income, spending, savings
 function renderMoM(Y, P) {
-  const m = Array.from({ length: 12 }, (_, k) => ({ k, ...totals(state.tx.filter((t) => t.date.startsWith(ym(Y, k + 1)))) }));
+  const m = Array.from({ length: 12 }, (_, k) => { const x = totals(state.tx.filter((t) => t.date.startsWith(ym(Y, k + 1)))); return { k, ...x, s: x.i - x.o }; });
   const lastDec = totals(state.tx.filter((t) => t.date.startsWith(ym(P, 12))));
-  const live = m.filter((x) => x.i || x.o);
+  const live = m.filter((x) => x.i || x.o || x.v);
   if (!live.length) { $("yrMoM").innerHTML = emptyBox("📆", "No entries this year."); return; }
-  const worst = live.reduce((a, b) => (b.o > a.o ? b : a)), best = live.reduce((a, b) => (b.n > a.n ? b : a));
-  const big = inYear(Y).filter((t) => t.type === "debit").sort((a, b) => b.amount - a.amount)[0];
+  const worst = live.reduce((a, b) => (b.o > a.o ? b : a)), best = live.reduce((a, b) => (b.s > a.s ? b : a));
+  const big = inYear(Y).filter((t) => t.type === "debit" && !isInvestTx(t)).sort((a, b) => b.amount - a.amount)[0];
   const rows = m.map((x) => {
-    if (!x.i && !x.o) return "";
+    if (!x.i && !x.o && !x.v) return "";
     const before = x.k ? m[x.k - 1] : lastDec;
-    return `<tr><td>${INS_MONTHS[x.k]}</td><td class="num credit">${money(x.i)}</td><td class="num debit">${money(x.o)}</td><td>${chg(x.o, before.o, true)}</td><td class="num ${x.n >= 0 ? "credit" : "debit"}">${sgn(x.n)}</td></tr>`;
+    return `<tr><td>${INS_MONTHS[x.k]}</td><td class="num credit">${money(x.i)}</td><td class="num debit">${money(x.o)}</td><td>${chg(x.o, before.o, true)}</td><td class="num" style="color:var(--brand)">${money(x.v)}</td><td class="num ${x.s >= 0 ? "credit" : "debit"}">${sgn(x.s)}</td></tr>`;
   }).join("");
   const avg = live.reduce((s, x) => s + x.o, 0) / live.length;
   const pm = Array.from({ length: 12 }, (_, k) => totals(state.tx.filter((t) => t.date.startsWith(ym(P, k + 1)))));
   const pairs = m.map((x) => ({ label: INS_MONTHS[x.k][0], a: x.o, b: pm[x.k].o, la: String(Y), lb: String(P) }));
-  const savePts = m.filter((x) => x.i || x.o).map((x) => ({ label: INS_MONTHS[x.k], saved: x.n }));
+  const savePts = m.filter((x) => x.i || x.o || x.v).map((x) => ({ label: INS_MONTHS[x.k], saved: x.s, inv: x.v }));
   $("yrMoM").innerHTML = `
     <div class="ins-sub" style="margin-top:0">Spending: ${Y} vs ${P}</div>
     ${drawPairs(pairs, "var(--debit)", "var(--muted)")}
     ${legend([["var(--debit)", String(Y)], ["var(--muted)", String(P)]])}
     <div class="ins-sub">Saved each month</div>
-    ${drawLines(savePts, [{ key: "saved", color: "var(--credit)", fill: true }])}
+    ${drawLines(savePts, [{ key: "saved", color: "var(--credit)", fill: true }, { key: "inv", color: "var(--brand)", dash: true }])}
+    ${legend([["var(--credit)", "Saved (income − spending)"], ["var(--brand)", "of it invested"]])}
     <div class="ins-flag" style="margin-top:12px"><span>🔥</span><span>Most spent in <b>${INS_MONTHS[worst.k]}</b>: <b class="num">${money(worst.o)}</b> — ${avg ? Math.round((worst.o / avg - 1) * 100) : 0}% above your monthly average of <span class="num">${money(avg)}</span>.${big ? ` Biggest single payment: <b class="num">${money(big.amount)}</b> on ${esc(big.category)}${big.desc ? ` (${esc(big.desc)})` : ""}, ${esc(shortDate(big.date))}.` : ""}</span></div>
-    <div class="ins-flag good"><span>🌟</span><span>Best month for saving: <b>${INS_MONTHS[best.k]}</b>, <b class="num">${sgn(best.n)}</b> kept.</span></div>
-    <div class="ins-scroll"><table class="ins-table"><tr><th>Month</th><th>In</th><th>Spent</th><th>vs prev.</th><th>Saved</th></tr>${rows}</table></div>`;
+    <div class="ins-flag good"><span>🌟</span><span>Best month for saving: <b>${INS_MONTHS[best.k]}</b>, <b class="num">${sgn(best.s)}</b> saved.</span></div>
+    <div class="ins-scroll"><table class="ins-table"><tr><th>Month</th><th>In</th><th>Spent</th><th>vs prev.</th><th>Invested</th><th>Saved</th></tr>${rows}</table></div>`;
 }
 
 // 4 · where the money went, and what grew most against last year
 function renderCats(Y, P) {
-  const by = (y) => { const o = {}; for (const t of inYear(y)) if (t.type === "debit") o[t.category] = (o[t.category] || 0) + +t.amount; return o; };
+  const by = (y) => { const o = {}; for (const t of inYear(y)) if (t.type === "debit" && !isInvestTx(t)) o[t.category] = (o[t.category] || 0) + +t.amount; return o; };
   const a = by(Y), b = by(P), names = [...new Set([...Object.keys(a), ...Object.keys(b)])];
   if (!names.length) { $("yrCats").innerHTML = emptyBox("🧾", "No spending this year."); return; }
   const list = names.map((n) => ({ n, a: a[n] || 0, b: b[n] || 0 })).sort((x, y) => y.a - x.a);

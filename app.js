@@ -84,7 +84,19 @@ function dayLabel(str) {
 function longDate(str) { return new Date(str + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); }
 function monthLabel(str) { const [y, m] = str.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" }); }
 function catOf(t) { const pool = t.type === "credit" ? CREDIT_CATEGORIES : DEBIT_CATEGORIES; return pool.find((c) => c.name.toLowerCase() === (t.category || "").toLowerCase()) || { icon: t.type === "credit" ? "🟢" : "🔴", name: t.category, short: t.category }; }
-function totals(list) { let i = 0, o = 0; for (const t of list) t.type === "credit" ? (i += +t.amount) : (o += +t.amount); return { i, o, n: i - o }; }
+// Money put into investments (a SIP, stocks, an FD…) leaves the cash
+// balance but is NOT spending: the app's own automatic investment entries
+// ("inv:…") and anything filed under the investments category.
+const INVEST_CAT = "Investments & SIP";
+function isInvestTx(t) { return t.type === "debit" && ((t.legacyId || "").startsWith("inv:") || (t.category || "").toLowerCase() === INVEST_CAT.toLowerCase()); }
+// i: income · o: real spending · v: invested · n: what the cash balance moved
+function totals(list) {
+  let i = 0, o = 0, v = 0;
+  for (const t of list) t.type === "credit" ? (i += +t.amount) : isInvestTx(t) ? (v += +t.amount) : (o += +t.amount);
+  return { i, o, v, n: i - o - v };
+}
+// "+ ₹6,300 invested" under a Spent figure, or nothing
+function investedNote(id, v) { const el = $(id); if (el) el.textContent = state.loaded && v ? `+ ${fmt(v)} invested` : ""; }
 function nowTime() { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 
 function toast(msg, kind) {
@@ -272,6 +284,7 @@ function renderHero() {
   $("heroNet").textContent = state.loaded ? signed(open + m.n) : "—";
   $("heroIn").textContent = state.loaded ? fmt(m.i) : "—";
   $("heroOut").textContent = state.loaded ? fmt(m.o) : "—";
+  investedNote("heroInv", m.v);
   $("heroCarry").textContent = state.loaded ? `${signed(open)} from ${monthLabel(shiftMonth(cur, -1))} · ${m.n >= 0 ? "+" : ""}${signed(m.n)} this month` : "";
 }
 function renderDay() {
@@ -280,7 +293,7 @@ function renderDay() {
   $("dayNext").disabled = false;
   const items = state.tx.filter((t) => t.date === state.day);
   const sum = totals(items);
-  $("dIn").textContent = fmt(sum.i); $("dOut").textContent = fmt(sum.o);
+  $("dIn").textContent = fmt(sum.i); $("dOut").textContent = fmt(sum.o); investedNote("dInv", sum.v);
   $("dNet").textContent = signed(sum.n); $("dNet").className = "num " + (sum.n >= 0 ? "credit" : "debit");
   const shown = state.filter === "all" ? items : items.filter((t) => t.type === state.filter);
   $("dayList").innerHTML = !state.loaded ? skeletons(3)
@@ -292,7 +305,7 @@ function renderMonth() {
   const items = state.tx.filter((t) => t.date.startsWith(state.month));
   $("monSub").textContent = `${items.length} ${items.length === 1 ? "entry" : "entries"}`;
   const sum = totals(items);
-  $("mIn").textContent = fmt(sum.i); $("mOut").textContent = fmt(sum.o);
+  $("mIn").textContent = fmt(sum.i); $("mOut").textContent = fmt(sum.o); investedNote("mInv", sum.v);
   $("mNet").textContent = signed(sum.n); $("mNet").className = "num " + (sum.n >= 0 ? "credit" : "debit");
   // daily cash flow bars
   const [y, m] = state.month.split("-").map(Number), days = new Date(y, m, 0).getDate();
@@ -304,12 +317,13 @@ function renderMonth() {
   $("cbOpen").textContent = signed(open); $("cbClose").textContent = signed(close);
   $("cbClose").className = "num " + (close >= 0 ? "credit" : "debit");
   $("cbIn").textContent = "+" + fmt(sum.i); $("cbOut").textContent = "−" + fmt(sum.o);
+  $("cbInvRow").hidden = !sum.v; $("cbInv").textContent = "−" + fmt(sum.v);
   $("cbPrevLbl").textContent = `Carried from ${monthLabel(shiftMonth(state.month, -1))}`;
-  const total = Math.max(1, Math.abs(open) + sum.i + sum.o);
-  $("cbFlow").innerHTML = `<i style="flex:${Math.abs(open) / total};background:var(--brand)"></i><i style="flex:${sum.i / total};background:var(--credit)"></i><i style="flex:${sum.o / total};background:var(--debit)"></i>`;
+  const total = Math.max(1, Math.abs(open) + sum.i + sum.o + sum.v);
+  $("cbFlow").innerHTML = `<i style="flex:${Math.abs(open) / total};background:var(--brand)"></i><i style="flex:${sum.i / total};background:var(--credit)"></i><i style="flex:${sum.o / total};background:var(--debit)"></i><i style="flex:${sum.v / total};background:var(--brand-2)"></i>`;
   // where it went: donut + tap a category to see its entries
   const cats = {};
-  for (const t of items) if (t.type === "debit") (cats[t.category] = cats[t.category] || []).push(t);
+  for (const t of items) if (t.type === "debit" && !isInvestTx(t)) (cats[t.category] = cats[t.category] || []).push(t);
   const top = Object.entries(cats).map(([n, l]) => [n, l, totals(l).o]).sort((a, b) => b[2] - a[2]);
   const PAL = ["#6366F1", "#F59E0B", "#EC4899", "#10B981", "#06B6D4", "#8B5CF6", "#F97316", "#84CC16", "#EF4444", "#64748B"];
   let acc = 0, segs = "";
@@ -325,6 +339,8 @@ function renderMonth() {
     return `<details class="cat-d"><summary class="cat"><div class="ico" style="background:${col}22">${c.icon}</div><div><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(c.name)}</b><small>${pct}% · ${list.length}×</small></div><div class="bar"><i style="width:${pct}%;background:${col}"></i></div></div><b class="num">${fmt(amt)}</b></summary>
       <div class="cat-more"><div class="cat-kpis"><span>Avg<b class="num">${fmt(avg)}</b></span><span>Biggest<b class="num">${fmt(biggest)}</b></span><span>Entries<b>${list.length}</b></span></div>${list.map(txItem).join("")}</div></details>`;
   }).join("") : emptyBox("🥧", "No spending this month.");
+  // investments are not spending: shown apart, under the categories
+  if (sum.v) $("monCats").innerHTML += `<div class="cat" style="opacity:.9"><div class="ico" style="background:var(--surface-2)">📈</div><div><b>Invested</b><div class="muted" style="font-size:12px">SIP, stocks, FD… — moved out of cash, not spent</div></div><b class="num" style="color:var(--brand)">${fmt(sum.v)}</b></div>`;
   // ledger, with search
   const q = $("monSearch").value.trim().toLowerCase();
   const shown = q ? items.filter((t) => [t.desc, t.category, t.paymentMode].some((v) => (v || "").toLowerCase().includes(q))) : items;
@@ -336,8 +352,10 @@ function renderYear() {
   $("yrTitle").textContent = state.year;
   const items = state.tx.filter((t) => t.date.startsWith(String(state.year)));
   const sum = totals(items);
-  $("yIn").textContent = fmt(sum.i); $("yOut").textContent = fmt(sum.o);
-  $("yNet").textContent = signed(sum.n); $("yNet").className = "num " + (sum.n >= 0 ? "credit" : "debit");
+  // saved = income − real spending; what went into investments is saved too
+  const saved = sum.i - sum.o;
+  $("yIn").textContent = fmt(sum.i); $("yOut").textContent = fmt(sum.o); investedNote("yInv", sum.v);
+  $("yNet").textContent = signed(saved); $("yNet").className = "num " + (saved >= 0 ? "credit" : "debit");
   const months = Array.from({ length: 12 }, (_, k) => totals(items.filter((t) => +t.date.slice(5, 7) === k + 1)));
   const names = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
   drawBars($("yrChart"), months.map((x, k) => ({ a: x.i, b: x.o, label: names[k] })));
