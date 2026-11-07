@@ -221,7 +221,7 @@ function renderMoM(Y, P) {
   const live = m.filter((x) => x.i || x.o || x.v);
   if (!live.length) { $("yrMoM").innerHTML = emptyBox("📆", "No entries this year."); return; }
   const worst = live.reduce((a, b) => (b.o > a.o ? b : a)), best = live.reduce((a, b) => (b.s > a.s ? b : a));
-  const big = inYear(Y).filter((t) => t.type === "debit" && !isInvestTx(t)).sort((a, b) => b.amount - a.amount)[0];
+  const big = inYear(Y).filter((t) => t.type === "debit" && !isInvestTx(t) && !isFriendTx(t)).sort((a, b) => b.amount - a.amount)[0];
   const rows = m.map((x) => {
     if (!x.i && !x.o && !x.v) return "";
     const before = x.k ? m[x.k - 1] : lastDec;
@@ -245,7 +245,7 @@ function renderMoM(Y, P) {
 
 // 4 · where the money went, and what grew most against last year
 function renderCats(Y, P) {
-  const by = (y) => { const o = {}; for (const t of inYear(y)) if (t.type === "debit" && !isInvestTx(t)) o[t.category] = (o[t.category] || 0) + +t.amount; return o; };
+  const by = (y) => { const o = {}; for (const t of inYear(y)) if (t.type === "debit" && !isInvestTx(t) && !isFriendTx(t)) o[t.category] = (o[t.category] || 0) + +t.amount; return o; };
   const a = by(Y), b = by(P), names = [...new Set([...Object.keys(a), ...Object.keys(b)])];
   if (!names.length) { $("yrCats").innerHTML = emptyBox("🧾", "No spending this year."); return; }
   const list = names.map((n) => ({ n, a: a[n] || 0, b: b[n] || 0 })).sort((x, y) => y.a - x.a);

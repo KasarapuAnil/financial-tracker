@@ -195,15 +195,25 @@ function openLoan(id) {
     `Paid back: ${fmtReal(c.paid)}`,
     `Balance: ${fmtReal(Math.max(0, c.balance))}`,
   ].join("\n"));
-  p.querySelector("#ldDel").onclick = () => confirmAsk(`Delete the loan with ${l.person}?`, "The loan and all its payments will be removed.", async () => {
+  const hand = isHandLoan(l);
+  p.querySelector("#ldDel").onclick = () => confirmAsk(`Delete the loan with ${l.person}?`, hand ? "The loan, its payments and their cash entries will be removed, so your cash balance is as if it never happened." : "The loan and all its payments will be removed.", async () => {
+    if (hand) {
+      const tx = await sb.from("transactions").delete().like("legacy_id", `loan:${l.id}:%`);
+      if (tx.error) throw tx.error;
+    }
     const { error } = await sb.from("loans").delete().eq("id", l.id);
     if (error) throw error;
-    await loadLoans(); render(); toast("Loan deleted");
+    await loadLoans(); if (hand) await loadAll(); render(); toast("Loan deleted");
   });
   p.querySelectorAll("[data-delpay]").forEach((b) => (b.onclick = () => confirmAsk("Remove this payment?", "The balance will be worked out again without it.", async () => {
+    if (hand) {
+      const tx = await sb.from("transactions").delete().eq("legacy_id", `loan:${l.id}:pay:${b.dataset.delpay}`);
+      if (tx.error) throw tx.error;
+      if (l.closed_on) await sb.from("loans").update({ closed_on: null }).eq("id", l.id);
+    }
     const { error } = await sb.from("loan_payments").delete().eq("id", b.dataset.delpay);
     if (error) throw error;
-    await loadLoans(); render(); toast("Payment removed"); setTimeout(() => openLoan(l.id), 350);
+    await loadLoans(); if (hand) await loadAll(); render(); toast("Payment removed"); setTimeout(() => openLoan(l.id), 350);
   }, "Remove")));
 }
 
@@ -301,6 +311,15 @@ function openPaymentForm(l, kind) {
     if (amount > 1e11) return panelError(p, "That amount is too large.");
     if (!paid_on) return panelError(p, "Pick a date.");
     busy(e.currentTarget, true);
+    // a loan made from a daily entry (handloans.js): its money runs through
+    // the cash balance, so the payment gets its cash entry too
+    if (isHandLoan(l)) {
+      try {
+        const closed = await recordFriendPayment(l, kind, amount, paid_on, p.querySelector("#pfNote").value.trim());
+        openLoan(l.id); toast(closed ? "Fully settled 🎉" : kind === "added" ? "Added to the loan" : "Payment saved");
+      } catch (er) { panelError(p, friendly(er)); busy(e.currentTarget, false); }
+      return;
+    }
     try {
       const { error } = await sb.from("loan_payments").insert({ loan_id: l.id, kind, amount: round2(amount), paid_on, note: p.querySelector("#pfNote").value.trim() });
       if (error) throw error;

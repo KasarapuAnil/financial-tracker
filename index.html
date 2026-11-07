@@ -467,11 +467,13 @@
         <div class="label" id="heroLabel">This month · net balance</div>
         <div class="big num" id="heroNet">—</div>
         <div class="split">
-          <div class="chip"><span>⬇ Income</span><b class="num" id="heroIn">—</b></div>
+          <div class="chip"><span>⬇ Income</span><b class="num" id="heroIn">—</b><small class="inv-note" id="heroInIn"></small></div>
           <div class="chip"><span>⬆ Spent</span><b class="num" id="heroOut">—</b><small class="inv-note" id="heroInv"></small></div>
         </div>
         <div class="carry" id="heroCarry"></div>
       </div>
+      <!-- money with friends, to collect or to give back: handloans.js -->
+      <div class="card chart-card" id="collectCard" hidden></div>
       <div class="card pager">
         <button class="round" id="dayPrev" aria-label="Previous day">‹</button>
         <button class="title" id="dayTitleBtn" style="border:0;background:none"><span id="dayTitle">Today</span><small id="daySub"></small></button>
@@ -479,7 +481,7 @@
         <button class="round" id="dayNext" aria-label="Next day">›</button>
       </div>
       <div class="stats">
-        <div class="card stat"><span>Income</span><b class="num credit" id="dIn">—</b></div>
+        <div class="card stat"><span>Income</span><b class="num credit" id="dIn">—</b><small id="dInIn"></small></div>
         <div class="card stat"><span>Spent</span><b class="num debit" id="dOut">—</b><small id="dInv"></small></div>
         <div class="card stat"><span>Net</span><b class="num" id="dNet">—</b></div>
       </div>
@@ -499,7 +501,7 @@
         <button class="round" id="monNext" aria-label="Next month">›</button>
       </div>
       <div class="stats">
-        <div class="card stat"><span>Income</span><b class="num credit" id="mIn">—</b></div>
+        <div class="card stat"><span>Income</span><b class="num credit" id="mIn">—</b><small id="mInIn"></small></div>
         <div class="card stat"><span>Spent</span><b class="num debit" id="mOut">—</b><small id="mInv"></small></div>
         <div class="card stat"><span>Net</span><b class="num" id="mNet">—</b></div>
       </div>
@@ -508,6 +510,7 @@
         <div class="cb-row"><span id="cbPrevLbl">Carried from last month</span><b class="num" id="cbOpen">—</b></div>
         <div class="cb-row"><span>⬇ Income</span><b class="num credit" id="cbIn">—</b></div>
         <div class="cb-row"><span>⬆ Spent</span><b class="num debit" id="cbOut">—</b></div>
+        <div class="cb-row" id="cbFriRow" hidden><span>🤝 Friends (lent / back)</span><b class="num" id="cbFri">—</b></div>
         <div class="cb-row" id="cbInvRow" hidden><span>📈 Invested</span><b class="num" id="cbInv" style="color:var(--brand)">—</b></div>
         <div class="cb-flow" id="cbFlow"></div>
         <div class="cb-row cb-total"><span>Closing balance</span><b class="num" id="cbClose">—</b></div>
@@ -535,7 +538,7 @@
         <button class="round" id="yrNext" aria-label="Next year">›</button>
       </div>
       <div class="stats">
-        <div class="card stat"><span>Income</span><b class="num credit" id="yIn">—</b></div>
+        <div class="card stat"><span>Income</span><b class="num credit" id="yIn">—</b><small id="yInIn"></small></div>
         <div class="card stat"><span>Spent</span><b class="num debit" id="yOut">—</b><small id="yInv"></small></div>
         <div class="card stat"><span>Saved</span><b class="num" id="yNet">—</b></div>
       </div>
@@ -701,6 +704,7 @@
       <button type="button" id="tDebit">⬆ Spent</button>
       <button type="button" id="tCredit">⬇ Income</button>
     </div>
+    <button type="button" class="btn btn-ghost" id="tFriend" style="width:100%;margin:-2px 0 14px;font-size:13.5px">🤝 Gave / got money for a few days — not spent, not income</button>
     <div class="amount"><span id="curSym">₹</span><input id="fAmount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0" aria-label="Amount" required></div>
     <div class="field"><label>Category</label></div>
     <div class="cat-grid" id="catGrid"></div>
@@ -736,6 +740,7 @@
 <script src="invest.js"></script>
 <script src="vault.js"></script>
 <script src="farm.js"></script>
+<script src="handloans.js"></script>
 <script src="insights.js"></script>
 </body>
 </html>
