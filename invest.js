@@ -123,6 +123,7 @@ const AUTO_ON = "2026-11-01";
 const INV_CATEGORY = "Investments & SIP";
 async function postInvDebits() {
   if (!state.loaded) return;
+  await refundNoCash();
   const today = todayStr(), have = new Set(state.tx.map((t) => t.legacyId).filter(Boolean)), rows = [];
   for (const i of state.invs) {
     if ((INV_KINDS[i.kind] || {}).noCash) continue;
@@ -140,6 +141,23 @@ async function postInvDebits() {
   if (error) throw error;
   await loadAll(); render();
   toast(`${rows.length} investment ${rows.length === 1 ? "payment" : "payments"} taken from cash`);
+}
+/* PF / PPF / EPF / NPS is paid by the employer or deducted from salary, not
+   from your cash. If one was first saved as a cash kind (or as one before
+   it became "noCash"), the automatic debits it made back then are removed,
+   so their money returns to the cash balance. Only the app's own automatic
+   entries ("· auto"); anything you typed in yourself is left alone. */
+async function refundNoCash() {
+  const ids = state.invs.filter((i) => (INV_KINDS[i.kind] || {}).noCash).map((i) => i.id);
+  if (!ids.length) return;
+  const isAuto = (t) => t.legacyId && ids.some((id) => t.legacyId.startsWith(`inv:${id}:`)) && !t.legacyId.includes(":add:");
+  const wrong = state.tx.filter(isAuto);
+  if (!wrong.length) return;
+  const { error } = await sb.from("transactions").delete().in("id", wrong.map((t) => t.id));
+  if (error) throw error;
+  const back = wrong.reduce((s, t) => s + (t.type === "debit" ? +t.amount : 0), 0);
+  await loadAll(); render();
+  toast(`PF isn't taken from cash · ${fmt(back)} back in your cash balance`);
 }
 loadHooks.push(loadInvs);
 resetHooks.push(() => Object.assign(state, { invs: [], invsLoaded: false }));
